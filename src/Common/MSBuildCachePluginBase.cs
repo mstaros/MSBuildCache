@@ -1,4 +1,4 @@
-﻿// Copyright (c) Microsoft. All rights reserved.
+// Copyright (c) Microsoft. All rights reserved.
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System;
@@ -26,7 +26,6 @@ using Microsoft.Build.Experimental.FileAccess;
 using Microsoft.Build.Experimental.ProjectCache;
 using Microsoft.Build.Framework;
 using Microsoft.Build.Graph;
-using Microsoft.CopyOnWrite;
 using Microsoft.MSBuildCache.Caching;
 using Microsoft.MSBuildCache.FileAccess;
 using Microsoft.MSBuildCache.Fingerprinting;
@@ -241,8 +240,6 @@ public abstract class MSBuildCachePluginBase<TPluginSettings> : ProjectCachePlug
 
         NugetPackageRoot = GetNuGetPackageRoot();
         _pathNormalizer = new PathNormalizer(_repoRoot, NugetPackageRoot);
-
-        WarnOnCowWithDifferingVolumes(logger);
 
         if (Directory.Exists(Settings.LogDirectory))
         {
@@ -1100,31 +1097,6 @@ public abstract class MSBuildCachePluginBase<TPluginSettings> : ProjectCachePlug
         }
 
         return nugetPackageRoot;
-    }
-
-    private void WarnOnCowWithDifferingVolumes(PluginLoggerBase logger)
-    {
-        if (_repoRoot is null
-            || NugetPackageRoot is null
-            || Settings is null)
-        {
-            throw new InvalidOperationException();
-        }
-
-        ICopyOnWriteFilesystem copyOnWriteFilesystem = CopyOnWriteFilesystemFactory.GetInstance();
-        if (copyOnWriteFilesystem.CopyOnWriteLinkSupportedInDirectoryTree(_repoRoot))
-        {
-            WarnIfCowNotSupportedBetweenRepoRootAndPath(NugetPackageRoot, "NuGet package root");
-            WarnIfCowNotSupportedBetweenRepoRootAndPath(Settings.LocalCacheRootPath, "local cache");
-        }
-
-        void WarnIfCowNotSupportedBetweenRepoRootAndPath(string path, string pathDescription)
-        {
-            if (!copyOnWriteFilesystem.CopyOnWriteLinkSupportedBetweenPaths(_repoRoot, path, pathsAreFullyResolved: true))
-            {
-                logger.LogWarning($"The repository path '{_repoRoot}' supports copy-on-write but the {pathDescription} '{path}' resides on a different volume. This may impact performance.");
-            }
-        }
     }
 
     private async Task<IReadOnlyDictionary<string, byte[]>> GetSourceControlFileHashesAsync(PluginLoggerBase logger, CancellationToken cancellationToken)

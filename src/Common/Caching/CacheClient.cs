@@ -20,7 +20,6 @@ using BuildXL.Cache.ContentStore.Tracing;
 using BuildXL.Cache.ContentStore.UtilitiesCore;
 using BuildXL.Cache.MemoizationStore.Interfaces.Caches;
 using BuildXL.Cache.MemoizationStore.Interfaces.Sessions;
-using Microsoft.CopyOnWrite;
 using Microsoft.MSBuildCache.Fingerprinting;
 using Microsoft.MSBuildCache.Hashing;
 using Fingerprint = Microsoft.MSBuildCache.Fingerprinting.Fingerprint;
@@ -43,14 +42,12 @@ public abstract class CacheClient : ICacheClient
     private readonly ConcurrentDictionary<NodeContext, Task> _materializationTasks = new();
     private readonly ConcurrentDictionary<string, bool> _directoryCreationCache = new();
     private readonly ConcurrentDictionary<string, Lazy<Task<string>>> _placeFromPackageCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ICopyOnWriteFilesystem _copyOnWriteFilesystem = CopyOnWriteFilesystemFactory.GetInstance();
     private readonly IContentHasher _hasher;
     private readonly IFingerprintFactory _fingerprintFactory;
     private readonly bool _enableAsyncMaterialization;
     private readonly bool _touchOutputFiles;
     private readonly ICache _localCache;
     private readonly string _nugetPackageRoot;
-    private readonly bool _canCloneInNugetCachePath;
     private readonly LocalCacheStateManager? _localCacheStateManager;
 
     protected CacheClient(
@@ -99,8 +96,6 @@ public abstract class CacheClient : ICacheClient
         {
             _outputHasher = new OutputHasher(_hasher);
         }
-
-        _canCloneInNugetCachePath = _copyOnWriteFilesystem.CopyOnWriteLinkSupportedInDirectoryTree(_nugetPackageRoot);
 
         if (skipUnchangedOutputFiles)
         {
@@ -450,14 +445,7 @@ public abstract class CacheClient : ICacheClient
                         CreateParentDirectory(destinationAbsolutePath);
 
                         Tracer.Debug(context, $"Copying package file: {sourceAbsolutePath} => {destinationAbsolutePath}");
-                        if (_canCloneInNugetCachePath && _copyOnWriteFilesystem.CopyOnWriteLinkSupportedBetweenPaths(sourceAbsolutePath, destinationAbsolutePath, pathsAreFullyResolved: true))
-                        {
-                            _copyOnWriteFilesystem.CloneFile(sourceAbsolutePath, destinationAbsolutePath, CloneFlags.PathIsFullyResolved);
-                        }
-                        else
-                        {
-                            File.Copy(sourceAbsolutePath, destinationAbsolutePath, overwrite: true);
-                        }
+                        File.Copy(sourceAbsolutePath, destinationAbsolutePath, overwrite: true);
 
                         return sourceAbsolutePath;
                     }))).Value;

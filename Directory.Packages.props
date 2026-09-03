@@ -8,7 +8,6 @@
     <RestoreUseStaticGraphEvaluation>true</RestoreUseStaticGraphEvaluation>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="CopyOnWrite" Version="0.5.0" />
     <PackageVersion Include="DotNet.Glob" Version="2.0.3" />
     <PackageVersion Include="ILRepack" Version="2.0.44" />
     <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="9.0.0" />
@@ -36,7 +35,7 @@
       An indirect dependency of BXL (Minimatch) depends on a very old and non-existing version of NETStandard.Library (>= 1.0.0-rc2-23910).
       This forces a good version of NETStandard.Library to mitigate.
     -->
-    <PackageVersion Include="NETStandard.Library" Version="2.0.3"/>
+    <PackageVersion Include="NETStandard.Library" Version="2.0.3" />
     <PackageVersion Include="NuGet.Versioning" Version="6.12.1" />
     <PackageVersion Include="protobuf-net" Version="3.2.26" />
     <PackageVersion Include="protobuf-net.Core" Version="3.2.26" />
@@ -51,7 +50,6 @@
     <PackageVersion Include="System.Text.Json" Version="9.0.0" />
     <PackageVersion Include="System.Threading.Channels" Version="8.0.0" />
     <PackageVersion Include="System.Threading.Tasks.Dataflow" Version="9.0.0" />
-
     <!-- Transitive deps for security updates -->
     <PackageVersion Include="Microsoft.IO.Redist" Version="6.1.0" />
     <PackageVersion Include="System.Formats.Asn1" Version="6.0.1" />
