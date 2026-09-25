@@ -56,7 +56,7 @@ These settings are common across all plugins, although different implementations
 | `$(MSBuildCacheLogDirectory)` | `string` | "MSBuildCacheLogs" | Base directory to use for logging. If a relative path, it's assumed relative to the repo root. |
 | `$(MSBuildCacheCacheUniverse)` | `string` | "default" | The cache universe is used to isolate the cache. This can be used to bust the cache, or to isolate some types of builds from other types. |
 | `$(MSBuildCacheMaxConcurrentCacheContentOperations)` | `int` | 64 | The maximum number of cache operations to perform concurrently |
-| `$(MSBuildCacheLocalCacheRootPath)` | `string` | "\MSBuildCache" (in repo's drive root) | Base directory to use for the local cache. |
+| `$(MSBuildCacheLocalCacheRootPath)` | `string` | `<drive>\\MSBuildCache\\<repository hash>` | Local cache directory. The default hashes the common Git directory, so linked worktrees share a cache and independent repositories use separate stores. An explicit path is used unchanged. |
 | `$(MSBuildCacheLocalCacheSizeInMegabytes)` | `int` | 102400 (100 GB) | The maximum size in megabytes of the local cache |
 | `$(MSBuildCacheIgnoredInputPatterns)` | `Glob[]` |  | Files which are part of the repo which should be ignored for cache invalidation |
 | `$(MSBuildCacheIgnoredOutputPatterns)` | `Glob[]` | `*.assets.cache; *assemblyreference.cache` | Files to ignore for output collection into the cache. Note that if output are ignored, the replayed cache entry will not have these files. This should be used for intermediate outputs which are not properly portable |
@@ -105,6 +105,20 @@ msbuild /graph /m /reportfileaccesses /t:Build;Test
 ```
 
 This not only provides the benefits of caching unit test execution, but also executes tests concurrently with other, unrelated, projects in the graph.
+
+## Concurrent builds
+
+The embedded local store has one owner at a time. An independent build sharing its cache
+directory waits with cancellation support; the log reports the wait and its duration. This
+serializes builds sharing that directory while retaining MSBuild's parallel project execution.
+The default directory is stable across a repository's linked worktrees. Explicit cache paths
+still control sharing; the configured cache-size quota applies to each resulting store.
+
+The lock records the owner's process identity. Nested builds whose ancestor owns the cache
+fail explicitly instead of waiting on their parent. Put those dependencies in the project
+graph, or explicitly disable the cache for the nested invocation. Permission and filesystem
+errors fail immediately instead of being mistaken for contention. Windows and Linux ancestry
+checks are supported; contention on other platforms fails explicitly.
 
 ## Plugins
 

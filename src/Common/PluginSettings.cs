@@ -6,6 +6,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Security.Cryptography;
 using System.Text;
 using DotNet.Globbing;
 using Microsoft.Build.Experimental.ProjectCache;
@@ -53,6 +54,7 @@ public class PluginSettings
 
     private string _logDirectory = "MSBuildCacheLogs";
     private string? _localCacheRootPath;
+    private string? _defaultLocalCacheRootPath;
 
     public required string RepoRoot { get; init; }
 
@@ -70,14 +72,59 @@ public class PluginSettings
     public int MaxConcurrentCacheContentOperations { get; init; } = 64;
 
     /// <summary>
-    /// Base directory to use for the local cache. If null, the default value is the "MSBuildCache" folder in the root of the drive the repo root is on.
+    /// Base directory for the local cache. The default is a repository-specific directory under the
+    /// drive root's MSBuildCache folder. Linked worktrees share their common Git directory identity.
     /// </summary>
     public string LocalCacheRootPath
     {
         get => string.IsNullOrEmpty(_localCacheRootPath)
-                ? Path.Combine(Path.GetPathRoot(RepoRoot)!, "MSBuildCache")
+                ? _defaultLocalCacheRootPath ??= GetDefaultLocalCacheRootPath(RepoRoot)
                 : _localCacheRootPath!;
         init => _localCacheRootPath = value;
+    }
+
+    internal static string GetDefaultLocalCacheRootPath(string repoRoot)
+    {
+        string gitDirectory = Path.Combine(Path.GetFullPath(repoRoot), ".git");
+        if (File.Exists(gitDirectory))
+        {
+            string gitFile = File.ReadAllText(gitDirectory).Trim();
+            const string prefix = "gitdir:";
+            if (!gitFile.StartsWith(prefix, StringComparison.Ordinal))
+            {
+                throw new InvalidDataException("Invalid Git worktree marker: " + gitDirectory);
+            }
+
+            gitDirectory = ResolvePath(repoRoot, gitFile.Substring(prefix.Length).Trim());
+        }
+
+        string commonDirectoryFile = Path.Combine(gitDirectory, "commondir");
+        string commonDirectory = File.Exists(commonDirectoryFile)
+            ? ResolvePath(gitDirectory, File.ReadAllText(commonDirectoryFile).Trim())
+            : gitDirectory;
+        string identity = commonDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (Path.DirectorySeparatorChar == '\\')
+        {
+            identity = identity.ToUpperInvariant();
+        }
+
+#if NETFRAMEWORK
+        using SHA256 sha256 = SHA256.Create();
+        string hash = BitConverter.ToString(sha256.ComputeHash(Encoding.UTF8.GetBytes(identity))).Replace("-", string.Empty);
+#else
+        string hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity)));
+#endif
+        return Path.Combine(Path.GetPathRoot(commonDirectory)!, "MSBuildCache", hash);
+
+        static string ResolvePath(string directory, string value)
+        {
+            if (value.Length == 0)
+            {
+                throw new InvalidDataException("Empty Git directory reference in " + directory);
+            }
+
+            return Path.GetFullPath(Path.IsPathRooted(value) ? value : Path.Combine(directory, value));
+        }
     }
 
     public uint LocalCacheSizeInMegabytes { get; init; } = 102400; // 100GB

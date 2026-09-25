@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using DotNet.Globbing;
@@ -95,6 +96,38 @@ public sealed class PluginSettingsTests
             nameof(PluginSettings.LocalCacheRootPath),
             pluginSettings => pluginSettings.LocalCacheRootPath,
             new[] { @"X:\A", @"X:\B", @"X:\C" });
+
+    [TestMethod]
+    public void DefaultCacheIsSharedByWorktreesAndIsolatedBetweenRepositories()
+    {
+        string root = Path.Combine(Path.GetTempPath(), "MSBuildCache-settings-" + Guid.NewGuid().ToString("N"));
+        string repository = Path.Combine(root, "repo");
+        string other = Path.Combine(root, "other");
+        string worktree = Path.Combine(root, "worktree");
+        string admin = Path.Combine(repository, ".git", "worktrees", "worktree");
+        Directory.CreateDirectory(admin);
+        Directory.CreateDirectory(Path.Combine(other, ".git"));
+        Directory.CreateDirectory(worktree);
+        File.WriteAllText(Path.Combine(worktree, ".git"), "gitdir: ../repo/.git/worktrees/worktree");
+        File.WriteAllText(Path.Combine(admin, "commondir"), "../..");
+        try
+        {
+            PluginSettings primary = new() { RepoRoot = repository };
+            PluginSettings linked = new() { RepoRoot = worktree };
+            PluginSettings unrelated = new() { RepoRoot = other };
+            Assert.AreEqual(primary.LocalCacheRootPath, linked.LocalCacheRootPath);
+            Assert.AreNotEqual(primary.LocalCacheRootPath, unrelated.LocalCacheRootPath);
+            Assert.AreEqual("explicit-cache", new PluginSettings
+            {
+                RepoRoot = repository,
+                LocalCacheRootPath = "explicit-cache",
+            }.LocalCacheRootPath);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
 
     [TestMethod]
     public void LocalCacheSizeInMegabytesSetting()

@@ -37,6 +37,9 @@ namespace Microsoft.MSBuildCache;
 
 public abstract class MSBuildCachePluginBase : MSBuildCachePluginBase<PluginSettings>
 {
+    // One guard across all settings types; generic statics would allow reentry through another plugin.
+    internal static readonly SemaphoreSlim SinglePluginInstanceLock = new(1, 1);
+
     // This is a convenience class for subclasses which don't have extended plugin settings
 }
 
@@ -44,8 +47,6 @@ public abstract class MSBuildCachePluginBase<TPluginSettings> : ProjectCachePlug
     where TPluginSettings : PluginSettings
 {
     private static readonly string PluginAssemblyDirectory = Path.GetDirectoryName(typeof(MSBuildCachePluginBase<TPluginSettings>).Assembly.Location)!;
-
-    private static readonly SemaphoreSlim SinglePluginInstanceLock = new(1, 1);
 
     // Keys are relative file paths
     private readonly ConcurrentDictionary<string, NodeContext> _outputProducer = new(StringComparer.OrdinalIgnoreCase);
@@ -158,6 +159,7 @@ public abstract class MSBuildCachePluginBase<TPluginSettings> : ProjectCachePlug
         _outputProducer.Clear();
         _localCacheDirectoryLock?.Dispose();
         _singlePluginInstanceMutex?.Release();
+        _singlePluginInstanceMutex = null;
     }
 
     protected virtual string? GetBuildId()
@@ -228,15 +230,9 @@ public abstract class MSBuildCachePluginBase<TPluginSettings> : ProjectCachePlug
             _repoRoot,
             FileAccessDataCapabilities.IsSupported);
 
-        // The local cache does not allow multiple processes to access it at the same time and will block indefinitely while waiting for a lock on the directory.
-        // In certain scenarios where MSBuild is invoked recursively, such as is done for Fakes projects, this can lead to a hang as the child MSBuild waits for the
-        // lock that the parent has while the parent waits for the child to exit.
-        // Because of this, we need to ensure only one instance of this plugin is running at a time.
-        if (!TryAcquireLock(Settings, logger))
-        {
-            // Note: by returning early, many fields won't be populated. Other methods are responsible for handling this and interpreting it as "not enabled".
-            return;
-        }
+        // The embedded cache has one owner. Independent builds wait with cancellation; a nested
+        // invocation cannot wait for a cache owned by its parent.
+        await AcquireLockAsync(Settings, logger, cancellationToken).ConfigureAwait(false);
 
         NugetPackageRoot = GetNuGetPackageRoot();
         _pathNormalizer = new PathNormalizer(_repoRoot, NugetPackageRoot);
@@ -1013,29 +1009,29 @@ public abstract class MSBuildCachePluginBase<TPluginSettings> : ProjectCachePlug
         }
     }
 
-    private bool TryAcquireLock(PluginSettings settings, PluginLoggerBase logger)
+    private async Task AcquireLockAsync(PluginSettings settings, PluginLoggerBase logger, CancellationToken cancellationToken)
     {
-        // Acquire a process-wide lock. This way if it fails, we can provide a more targeted warning.
-        if (!SinglePluginInstanceLock.Wait(millisecondsTimeout: 0))
+        if (!MSBuildCachePluginBase.SinglePluginInstanceLock.Wait(millisecondsTimeout: 0, cancellationToken))
         {
-            logger.LogError("Another instance of MSBuildCache is already running in this build. This is typically due to a misconfiguration of the plugin settings, in particular different plugin settings across projects.");
-            return false;
+            throw new InvalidOperationException(
+                "Another instance of MSBuildCache is already running in this build. Check for different plugin settings across projects or a nested build.");
         }
 
-        // Now that this instance owns the lock, copy it to an instance variable to facilitate proper release on dispose.
-        _singlePluginInstanceMutex = SinglePluginInstanceLock;
-
-        // Acquire a system-wide lock. If this fails, a separate build may be running, which might be intentional by the user so this may not be a warning.
-        // Note: Ensure this doesn't collide with the local cache's directory lock by using a unique file name.
-        string directoryLockFile = Path.Combine(settings.LocalCacheRootPath, "MSBuildCache.lock");
-        _localCacheDirectoryLock = new DirectoryLock(directoryLockFile, logger);
-        if (!_localCacheDirectoryLock.Acquire())
+        _singlePluginInstanceMutex = MSBuildCachePluginBase.SinglePluginInstanceLock;
+        try
         {
-            logger.LogWarning("Another instance of MSBuildCache is already running in another build. This build will not receive any cache hits.");
-            return false;
+            string directoryLockFile = Path.Combine(settings.LocalCacheRootPath, "MSBuildCache.lock");
+            _localCacheDirectoryLock = new DirectoryLock(directoryLockFile, logger);
+            await _localCacheDirectoryLock.AcquireAsync(cancellationToken).ConfigureAwait(false);
         }
-
-        return true;
+        catch
+        {
+            _localCacheDirectoryLock?.Dispose();
+            _localCacheDirectoryLock = null;
+            _singlePluginInstanceMutex.Release();
+            _singlePluginInstanceMutex = null;
+            throw;
+        }
     }
 
     private static string? GetRepoRoot(CacheContext context, PluginLoggerBase logger)
