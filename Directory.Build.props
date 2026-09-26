@@ -7,7 +7,7 @@
     <!-- Use the latest version of C# available -->
     <LangVersion>Latest</LangVersion>
 
-    <!-- ArtifactsDirectory is an Azure Pipelines variable so presents as an env var -->
+    <!-- Allow callers to override the artifact directory through an MSBuild property or environment variable. -->
     <BaseArtifactsPath Condition="'$(ArtifactsDirectory)' != ''">$(ArtifactsDirectory)\$(Configuration)\</BaseArtifactsPath>
     <BaseArtifactsPath Condition="'$(BaseArtifactsPath)' == ''">$(MSBuildThisFileDirectory)artifacts\$(Configuration)\</BaseArtifactsPath>
 

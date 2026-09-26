@@ -50,7 +50,7 @@ param
     [string[]] $Scenarios = @(),
 
     # Set by callers that supply an MSBuild which is expected to support the feature (the
-    # tip-of-MSBuild-repo pipeline job). Turns the capability skip into a hard failure so that
+    # custom SDK host). Turns the capability skip into a hard failure so that
     # coverage can't silently disappear if the bootstrap layout or the API changes.
     [Parameter(Mandatory = $false)]
     [bool] $RequireEnumerationCapability = $false
@@ -729,16 +729,13 @@ if (-not (Test-EnumerationCapability -MSBuildPath $MSBuildPath)) {
         # This caller supplies an MSBuild that is supposed to support the feature, so a missing
         # capability means the setup is broken rather than the MSBuild being old. Skipping here would
         # silently drop all end-to-end coverage.
-        Write-Host "##vso[task.logissue type=error]$message Expected this MSBuild to support it."
         Write-Host "$message Expected this MSBuild to support it."
         exit 1
     }
 
     # Otherwise skip rather than fail: released MSBuild doesn't carry the field yet, and failing would
-    # block every PR on something no PR can fix. Raised as a pipeline log issue so the skip surfaces in
-    # the build summary instead of being buried in log output.
+    # prevent using the script with stock SDK hosts. Report the skip as a normal warning.
     $message += " SKIPPING. Re-run against an MSBuild that contains the field to actually exercise them."
-    Write-Host "##vso[task.logissue type=warning]$message"
     Write-Warning $message
     exit 0
 }
