@@ -20,9 +20,6 @@ using BuildXL.Cache.ContentStore.UtilitiesCore;
 using BuildXL.Cache.MemoizationStore.Interfaces.Caches;
 using BuildXL.Cache.MemoizationStore.Interfaces.Results;
 using BuildXL.Cache.MemoizationStore.Interfaces.Sessions;
-#if NET472
-using BuildXL.Utilities.Collections;
-#endif
 using Microsoft.MSBuildCache.Fingerprinting;
 using Fingerprint = BuildXL.Cache.MemoizationStore.Interfaces.Sessions.Fingerprint;
 

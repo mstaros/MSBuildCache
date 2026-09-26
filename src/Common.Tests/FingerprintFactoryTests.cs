@@ -1213,11 +1213,10 @@ public class FingerprintFactoryTests
     }
 
     /// <summary>
-    /// Helper to write a text file synchronously. net472 doesn't have File.WriteAllTextAsync, and these
-    /// tests must build on both TFMs. The work is trivially fast and happens during one-time test setup,
+    /// Helper to write the small fixture files synchronously during one-time test setup,
     /// so blocking the async caller is benign.
     /// </summary>
-#pragma warning disable CA1849 // Synchronous IO blocks async caller. net472 lacks an async equivalent; trivial test-setup IO.
+#pragma warning disable CA1849 // Small synchronous writes during one-time test setup.
     private static void WriteTextSync(string path, string text)
     {
         File.WriteAllText(path, text);

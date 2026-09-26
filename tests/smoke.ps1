@@ -32,15 +32,34 @@ function Run-Test {
         [int] $ExpectedCacheHits,
 
         [Parameter(Mandatory = $true)]
-        [int] $ExpectedCacheMisses
+        [int] $ExpectedCacheMisses,
+
+        [Parameter(Mandatory = $false)]
+        [switch] $SkipClean,
+
+        [Parameter(Mandatory = $false)]
+        [string] $ExpectedOutputHash
     )
 
     Write-Host "[$TestName] Starting test"
 
-    Write-Host "[$TestName] Cleaning"
-    Push-Location $ProjectDir
-    & git clean -fdx
-    Pop-Location
+    if (-not $SkipClean)
+    {
+        Write-Host "[$TestName] Cleaning"
+        Push-Location $ProjectDir
+        try
+        {
+            & git clean -fdx
+            if ($LASTEXITCODE -ne 0)
+            {
+                throw "[$TestName] git clean failed."
+            }
+        }
+        finally
+        {
+            Pop-Location
+        }
+    }
 
     Write-Host "[$TestName] Building"
     $result = Invoke-MSBuildCacheBuild `
@@ -50,6 +69,7 @@ function Run-Test {
         -CachePackage $CachePackage `
         -CacheUniverse $CacheUniverse `
         -CacheRoot "$TestRoot\MSBuildCache" `
+        -ExtraProperties @{ Configuration = $Configuration } `
         -Context $TestName
 
     Assert-CacheStats `
@@ -57,6 +77,16 @@ function Run-Test {
         -ExpectedHits $ExpectedCacheHits `
         -ExpectedMisses $ExpectedCacheMisses `
         -Context $TestName
+
+    if ($ExpectedOutputHash)
+    {
+        $outputPath = Join-Path $ProjectDir "bin\$Configuration\net9.0\TestProject.dll"
+        $actualOutputHash = (Get-FileHash -LiteralPath $outputPath -Algorithm SHA256).Hash
+        if ($actualOutputHash -ne $ExpectedOutputHash)
+        {
+            throw "[$TestName] cached output was changed by a previous output mutation."
+        }
+    }
 
     Write-Host "[$TestName] Test complete"
 }
@@ -82,8 +112,8 @@ if (-not $TestRoot)
 
 if (-not $MSBuildPath)
 {
-    # Find it on the PATH
-    $MSBuildPath = (Get-Command "msbuild").Path
+    # Use SDK MSBuild; an explicit dotnet.exe can select the patched SDK.
+    $MSBuildPath = (Get-Command "dotnet").Path
 }
 # Use a unique cache universe for every test run
 $CacheUniverse = (New-Guid).ToString()
@@ -101,6 +131,7 @@ $env:NUGET_PACKAGES="$TestRoot\.nuget"
 $ProjectDir = Join-Path $TestRoot "src"
 
 Remove-Item -Path $TestRoot -Recurse -Force -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Path $TestRoot > $null
 
 Write-Host "Creating Git repo in $ProjectDir"
 New-MSBuildCacheTestProject `
@@ -113,10 +144,78 @@ Run-Test `
     -ExpectedCacheHits 0 `
     -ExpectedCacheMisses 1
 
+# Mutate the same file object in place so hardlink sharing cannot be hidden by replacement.
+$outputPath = Join-Path $ProjectDir "bin\$Configuration\net9.0\TestProject.dll"
+$originalOutputHash = (Get-FileHash -LiteralPath $outputPath -Algorithm SHA256).Hash
+foreach ($stage in @("AfterPublication", "AfterRestoration"))
+{
+    if ((Get-Item -LiteralPath $outputPath).IsReadOnly)
+    {
+        throw "[$stage] build output must remain writable."
+    }
+
+    $stream = [System.IO.File]::Open(
+        $outputPath,
+        [System.IO.FileMode]::Open,
+        [System.IO.FileAccess]::ReadWrite,
+        [System.IO.FileShare]::None)
+    try
+    {
+        $firstByte = $stream.ReadByte()
+        if ($firstByte -lt 0)
+        {
+            throw "[$stage] expected a nonempty build output."
+        }
+        $stream.Position = 0
+        $stream.WriteByte([byte]($firstByte -bxor 1))
+    }
+    finally
+    {
+        $stream.Dispose()
+    }
+
+    if ((Get-FileHash -LiteralPath $outputPath -Algorithm SHA256).Hash -eq $originalOutputHash)
+    {
+        throw "[$stage] output mutation did not change the bytes."
+    }
+
+    Run-Test `
+        -TestName "WarmCache$stage" `
+        -ExpectedCacheHits 1 `
+        -ExpectedCacheMisses 0 `
+        -SkipClean `
+        -ExpectedOutputHash $originalOutputHash
+}
+
+# A cache miss must also rebuild over restored outputs without a purger.
+$programPath = Join-Path $ProjectDir "Program.cs"
+$originalProgram = [System.IO.File]::ReadAllBytes($programPath)
+try
+{
+    [System.IO.File]::AppendAllText($programPath, "`r`n// Exercise a rebuild over restored cache outputs.`r`n")
+    Run-Test `
+        -TestName "RebuildWithoutCleaning" `
+        -ExpectedCacheHits 0 `
+        -ExpectedCacheMisses 1 `
+        -SkipClean
+}
+finally
+{
+    [System.IO.File]::WriteAllBytes($programPath, $originalProgram)
+}
+
+Run-Test `
+    -TestName "RestoreAfterRebuild" `
+    -ExpectedCacheHits 1 `
+    -ExpectedCacheMisses 0 `
+    -SkipClean `
+    -ExpectedOutputHash $originalOutputHash
+
 Run-Test `
     -TestName "WarmCache" `
     -ExpectedCacheHits 1 `
-    -ExpectedCacheMisses 0
+    -ExpectedCacheMisses 0 `
+    -ExpectedOutputHash $originalOutputHash
 
 # set up junction run
 try {
@@ -130,7 +229,8 @@ try {
     Run-Test `
         -TestName "WarmCacheOtherRoot" `
         -ExpectedCacheHits 1 `
-        -ExpectedCacheMisses 0
+        -ExpectedCacheMisses 0 `
+        -ExpectedOutputHash $originalOutputHash
 }
 finally  {
     # weird way to delete a junction in PowerShell

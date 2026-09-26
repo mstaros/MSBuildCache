@@ -77,7 +77,7 @@ if (-not $TestRoot) {
 }
 
 if (-not $MSBuildPath) {
-    $MSBuildPath = (Get-Command "msbuild").Path
+    $MSBuildPath = (Get-Command "dotnet").Path
 }
 
 $env:LocalPackageDir = $LocalPackageDir
@@ -107,28 +107,52 @@ function Test-EnumerationCapability
         The probe and enumeration fingerprinting feature self-disables when the host MSBuild does
         not report enumeration patterns, so on an older MSBuild these scenarios would assert misses
         that legitimately cannot happen. Inspecting the assembly mirrors what the plugin itself
-        does, rather than guessing from a version number. The load happens in a child process so
-        the probed assembly is not pinned into this session.
+        does, rather than guessing from a version number. Metadata inspection avoids loading
+        the host assembly into PowerShell's runtime.
     #>
     param(
         [Parameter(Mandatory = $true)] [string] $MSBuildPath
     )
 
-    $dll = Join-Path (Split-Path -Parent $MSBuildPath) "Microsoft.Build.dll"
-    if (-not (Test-Path $dll)) {
+    if ([System.IO.Path]::GetFileNameWithoutExtension($MSBuildPath) -eq "dotnet") {
+        $sdkVersion = (& $MSBuildPath --version).Trim()
+        if ($LASTEXITCODE -ne 0) { throw "Could not resolve the SDK used by $MSBuildPath." }
+        $sdks = @(& $MSBuildPath --list-sdks)
+        if ($LASTEXITCODE -ne 0) { throw "Could not list SDKs for $MSBuildPath." }
+        $sdk = @($sdks | Where-Object { $_ -match ("^" + [regex]::Escape($sdkVersion) + " \[") })
+        if ($sdk.Count -ne 1 -or $sdk[0] -notmatch '\[(.+)\]$') {
+            throw "Could not locate selected SDK $sdkVersion for $MSBuildPath."
+        }
+        $dll = Join-Path $Matches[1] "$sdkVersion\Microsoft.Build.dll"
+    }
+    else {
+        $dll = Join-Path (Split-Path -Parent $MSBuildPath) "Microsoft.Build.dll"
+    }
+    if (-not (Test-Path $dll)) { return $false }
+
+    # Inspect metadata without loading MSBuild into PowerShell's potentially older runtime.
+    $stream = [System.IO.File]::OpenRead($dll)
+    $reader = $null
+    try {
+        $reader = [System.Reflection.PortableExecutable.PEReader]::new($stream)
+        $metadata = [System.Reflection.Metadata.PEReaderExtensions]::GetMetadataReader($reader)
+        foreach ($handle in $metadata.TypeDefinitions) {
+            $type = $metadata.GetTypeDefinition($handle)
+            if ($metadata.GetString($type.Namespace) -eq "Microsoft.Build.Experimental.FileAccess" -and
+                $metadata.GetString($type.Name) -eq "FileAccessData") {
+                foreach ($propertyHandle in $type.GetProperties()) {
+                    $property = $metadata.GetPropertyDefinition($propertyHandle)
+                    if ($metadata.GetString($property.Name) -eq "EnumeratePattern") { return $true }
+                }
+                return $false
+            }
+        }
         return $false
     }
-
-    $probe = @"
-try {
-    `$assembly = [System.Reflection.Assembly]::LoadFrom('$dll')
-    `$type = `$assembly.GetType('Microsoft.Build.Experimental.FileAccess.FileAccessData')
-    if (`$type -and `$type.GetProperty('EnumeratePattern')) { 'YES' } else { 'NO' }
-}
-catch { 'NO' }
-"@
-
-    return ((& pwsh -NoProfile -Command $probe) -eq 'YES')
+    finally {
+        if ($null -ne $reader) { $reader.Dispose() }
+        $stream.Dispose()
+    }
 }
 
 function New-ScenarioSandbox

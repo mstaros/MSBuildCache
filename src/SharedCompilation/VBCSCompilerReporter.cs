@@ -4,9 +4,6 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-#if NET472
-using System.Diagnostics;
-#endif
 using System.IO;
 using System.Linq;
 using Microsoft.Build.Experimental.FileAccess;
@@ -49,22 +46,14 @@ internal static class VBCSCompilerReporter
         // switches implying file accesses.
         List<Diagnostic> parsedBadSwitchErrors = parsedCommandLine.Errors.Where(
             diagnostic => diagnostic.Id.
-#if NET472
-            Contains("2007")
-#else
             Contains("2007", StringComparison.Ordinal)
-#endif
             ).ToList();
         var badSwitchErrors = new HashSet<Diagnostic>();
         foreach (Diagnostic badSwitch in parsedBadSwitchErrors)
         {
             // Skip diagnostics for allowed unrecognized switches.
             string message = badSwitch.GetMessage();
-#if NET472
-            if (AllowedUnrecognizedSwitchSubstrings.Any(s => message.IndexOf(s, StringComparison.OrdinalIgnoreCase) >= 0))
-#else
             if (AllowedUnrecognizedSwitchSubstrings.Any(s => message.Contains(s, StringComparison.OrdinalIgnoreCase)))
-#endif
             {
                 continue;
             }
@@ -243,12 +232,8 @@ internal static class VBCSCompilerReporter
         private readonly ReportFileAccessFn _reportFileAccess;
 
         private static readonly uint ProcessId = (uint)
-#if NET472
-                Process.GetCurrentProcess().Id;
-#else
                 // More performant than Process.GetCurrentProcess().Id.
                 Environment.ProcessId;
-#endif
 
         public AccessRegistrar(string basePath, EngineServices engineServices)
         {
@@ -265,14 +250,7 @@ internal static class VBCSCompilerReporter
 
         public void RegisterInputs(IEnumerable<string?> filePaths)
         {
-#if NETFRAMEWORK
-            if (filePaths == null)
-            {
-                throw new ArgumentNullException(nameof(filePaths));
-            }
-#else
             ArgumentNullException.ThrowIfNull(filePaths);
-#endif
 
             foreach (string? filePath in filePaths)
             {

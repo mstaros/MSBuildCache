@@ -2,18 +2,14 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System;
-#if !NETFRAMEWORK
 using System.Diagnostics;
 using System.IO;
 using System.Security;
-#endif
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Build.Execution;
 using Microsoft.Build.Experimental.ProjectCache;
-#if !NETFRAMEWORK
 using Microsoft.VisualStudio.TestTools.UnitTesting;
-#endif
 
 namespace Microsoft.MSBuildCache.Tests;
 
@@ -42,7 +38,6 @@ public sealed class WarningPolicyTestPlugin : ProjectCachePluginBase
         => Task.CompletedTask;
 }
 
-#if !NETFRAMEWORK
 [TestClass]
 public sealed class WarningPolicyTests
 {
@@ -166,4 +161,3 @@ public sealed class WarningPolicyTests
 
     private readonly record struct BuildInvocationResult(string Output);
 }
-#endif

@@ -6,9 +6,6 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Build.Experimental.ProjectCache;
-#if NETFRAMEWORK
-using Process = Microsoft.MSBuildCache.SourceControl.GitProcess;
-#endif
 
 namespace Microsoft.MSBuildCache.SourceControl;
 
@@ -75,12 +72,7 @@ internal static class Git
                 });
                 Task<string> errorTask = Task.Run(() => stderr.ReadToEndAsync());
 
-#if NETFRAMEWORK
-                process.WaitForExit();
-                cancellationToken.ThrowIfCancellationRequested();
-#else
                 await process.WaitForExitAsync(cancellationToken);
-#endif
 
                 if (process.ExitCode == 0)
                 {

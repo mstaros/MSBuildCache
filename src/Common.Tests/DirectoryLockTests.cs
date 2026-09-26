@@ -90,11 +90,7 @@ public class DirectoryLockTests
         using CancellationTokenSource cancellation = new();
         Assert.IsTrue(owner.Acquire());
         Task acquisition = waiter.AcquireAsync(cancellation.Token);
-#if NETFRAMEWORK
-        cancellation.Cancel();
-#else
         await cancellation.CancelAsync();
-#endif
         try
         {
             await acquisition;
@@ -113,11 +109,7 @@ public class DirectoryLockTests
     public async Task InvalidCacheDirectoryIsNotTreatedAsContention()
     {
         string file = GetLockFilePath() + ".parent";
-#if NETFRAMEWORK
-        File.WriteAllText(file, "a file, not a cache directory");
-#else
         await File.WriteAllTextAsync(file, "a file, not a cache directory");
-#endif
         try
         {
             using DirectoryLock directoryLock = new(Path.Combine(file, "lock"), NullPluginLogger.Instance);
@@ -138,11 +130,7 @@ public class DirectoryLockTests
         }
 
         string path = GetLockFilePath();
-#if NETFRAMEWORK
-        File.WriteAllText(path, string.Empty);
-#else
         await File.WriteAllTextAsync(path, string.Empty);
-#endif
         File.SetAttributes(path, FileAttributes.ReadOnly);
         try
         {
@@ -164,11 +152,7 @@ public class DirectoryLockTests
         }
 
         string path = GetLockFilePath();
-#if NETFRAMEWORK
-        string escapedPath = path.Replace("'", "''");
-#else
         string escapedPath = path.Replace("'", "''", StringComparison.Ordinal);
-#endif
         string script = "$s=[IO.File]::Open('" + escapedPath + "',[IO.FileMode]::OpenOrCreate,[IO.FileAccess]::Write,[IO.FileShare]::Read);"
             + "$p=[Diagnostics.Process]::GetCurrentProcess();"
             + "$b=[Text.Encoding]::UTF8.GetBytes($p.Id.ToString()+':'+$p.StartTime.ToUniversalTime().Ticks.ToString());"
@@ -209,11 +193,7 @@ public class DirectoryLockTests
                 child.Kill();
             }
 
-#if NETFRAMEWORK
-            child.WaitForExit();
-#else
             await child.WaitForExitAsync();
-#endif
         }
     }
 

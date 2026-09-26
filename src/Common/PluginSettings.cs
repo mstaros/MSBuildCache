@@ -108,12 +108,7 @@ public class PluginSettings
             identity = identity.ToUpperInvariant();
         }
 
-#if NETFRAMEWORK
-        using SHA256 sha256 = SHA256.Create();
-        string hash = BitConverter.ToString(sha256.ComputeHash(Encoding.UTF8.GetBytes(identity))).Replace("-", string.Empty);
-#else
         string hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(identity)));
-#endif
         return Path.Combine(Path.GetPathRoot(commonDirectory)!, "MSBuildCache", hash);
 
         static string ResolvePath(string directory, string value)
@@ -312,22 +307,9 @@ public class PluginSettings
 
         if (type.IsEnum)
         {
-#if NETFRAMEWORK
-            try
-            {
-                settingValue = Enum.Parse(type, rawSettingValue);
-                return SettingParseResult.Success;
-            }
-            catch (ArgumentException)
-            {
-                settingValue = null;
-                return SettingParseResult.InvalidValue;
-            }
-#else
             return Enum.TryParse(type, rawSettingValue, out settingValue)
                 ? SettingParseResult.Success
                 : SettingParseResult.InvalidValue;
-#endif
         }
 
         if (PrimitiveParsers.TryGetValue(type, out Func<string, object?>? parser))
@@ -491,9 +473,7 @@ public class PluginSettings
         string[] rawValues = rawSettingValue.Split(
             ValueSeparator,
             StringSplitOptions.RemoveEmptyEntries
-#if !NETFRAMEWORK
             | StringSplitOptions.TrimEntries
-#endif
         );
 
         if (rawValues.Length == 0)

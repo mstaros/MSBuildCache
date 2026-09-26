@@ -58,11 +58,7 @@ internal sealed class OutputHasher : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-#if NETFRAMEWORK
-        _cancellationTokenSource.Cancel();
-#else
         await _cancellationTokenSource.CancelAsync();
-#endif
         _hashingChannel.Writer.Complete();
         await _hashingChannel.Reader.Completion;
         await Task.WhenAll(_channelWorkerTasks);

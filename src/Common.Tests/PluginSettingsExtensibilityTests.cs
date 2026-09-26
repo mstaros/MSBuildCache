@@ -278,11 +278,7 @@ public class PluginSettingsExtensibilityTests
 
     private static bool IsLogged(MockPluginLogger logger, PluginLogLevel logLevel, string partialMessage)
         =>
-#if NETFRAMEWORK
-            logger.LogEntries.Any(entry => entry.LogLevel == logLevel && entry.Message.Contains(partialMessage));
-#else
             logger.LogEntries.Any(entry => entry.LogLevel == logLevel && entry.Message.Contains(partialMessage, StringComparison.Ordinal));
-#endif
 
     private enum MockEnum { A, B, C }
 

@@ -1,3 +1,0 @@
-<Project>
-  <Import Project="Microsoft.MSBuildCache.Common.targets" />
-</Project>

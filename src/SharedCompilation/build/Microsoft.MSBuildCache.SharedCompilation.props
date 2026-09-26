@@ -1,6 +1,5 @@
 <Project>
   <PropertyGroup>
-    <MSBuildCacheSharedCompilationAssembly Condition="'$(MSBuildRuntimeType)' != 'Core'">$(MSBuildThisFileDirectory)net472\Microsoft.MSBuildCache.SharedCompilation.dll</MSBuildCacheSharedCompilationAssembly>
-    <MSBuildCacheSharedCompilationAssembly Condition="'$(MSBuildRuntimeType)' == 'Core'">$(MSBuildThisFileDirectory)net9.0\Microsoft.MSBuildCache.SharedCompilation.dll</MSBuildCacheSharedCompilationAssembly>
+    <MSBuildCacheSharedCompilationAssembly>$(MSBuildThisFileDirectory)net9.0\Microsoft.MSBuildCache.SharedCompilation.dll</MSBuildCacheSharedCompilationAssembly>
   </PropertyGroup>
 </Project>

@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project>
   <PropertyGroup>
-    <ArtifactsPackageVersion>19.250.35814-buildid29613111</ArtifactsPackageVersion>
-    <BuildXLPackageVersion>0.1.0-20250207.7.2</BuildXLPackageVersion>
+    <BuildXLPackageVersion>0.1.0-cow.29292b4</BuildXLPackageVersion>
     <MSBuildPackageVersion>17.14.28</MSBuildPackageVersion>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
     <RestoreUseStaticGraphEvaluation>true</RestoreUseStaticGraphEvaluation>
@@ -10,14 +9,13 @@
   <ItemGroup>
     <PackageVersion Include="DotNet.Glob" Version="2.0.3" />
     <PackageVersion Include="ILRepack" Version="2.0.44" />
-    <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="9.0.0" />
+    <PackageVersion Include="Microsoft.Bcl.AsyncInterfaces" Version="10.0.11" />
     <PackageVersion Include="Microsoft.Bcl.HashCode" Version="1.1.1" />
     <PackageVersion Include="Microsoft.Build" Version="$(MSBuildPackageVersion)" />
     <PackageVersion Include="Microsoft.Build.Framework" Version="$(MSBuildPackageVersion)" />
     <PackageVersion Include="Microsoft.Build.Prediction" Version="1.1.0" />
     <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="$(MSBuildPackageVersion)" />
     <PackageVersion Include="Microsoft.BuildXL.Cache.ContentStore.Interfaces" Version="$(BuildXLPackageVersion)" />
-    <PackageVersion Include="Microsoft.BuildXL.Cache.Hashing" Version="$(BuildXLPackageVersion)" />
     <PackageVersion Include="Microsoft.BuildXL.Cache.MemoizationStore.Interfaces" Version="$(BuildXLPackageVersion)" />
     <PackageVersion Include="Microsoft.BuildXL.Cache.MemoizationStore.Distributed" Version="$(BuildXLPackageVersion)" />
     <PackageVersion Include="Microsoft.BuildXL.Cache.MemoizationStore.Library" Version="$(BuildXLPackageVersion)" />
@@ -26,10 +24,7 @@
     <PackageVersion Include="Microsoft.BuildXL.Utilities" Version="$(BuildXLPackageVersion)" />
     <PackageVersion Include="Microsoft.BuildXL.Utilities.Core" Version="$(BuildXLPackageVersion)" />
     <PackageVersion Include="Microsoft.CodeAnalysis" Version="3.8.0" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
-    <PackageVersion Include="Microsoft.VisualStudio.Services.BlobStore.Client" Version="$(ArtifactsPackageVersion)" />
-    <PackageVersion Include="Microsoft.VisualStudio.Services.BlobStore.Client.Cache" Version="$(ArtifactsPackageVersion)" />
-    <PackageVersion Include="Microsoft.VisualStudio.Services.PipelineCache.WebApi" Version="$(ArtifactsPackageVersion)" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
     <PackageVersion Include="morelinq" Version="3.4.2" />
     <!--
       An indirect dependency of BXL (Minimatch) depends on a very old and non-existing version of NETStandard.Library (>= 1.0.0-rc2-23910).
@@ -42,18 +37,18 @@
     <PackageVersion Include="protobuf-net.Grpc" Version="1.1.1" />
     <PackageVersion Include="RocksDbNative" Version="8.1.1-20241011.2" />
     <PackageVersion Include="RocksDbSharp" Version="8.1.1-20241011.2" />
-    <PackageVersion Include="System.Collections.Immutable" Version="9.0.0" />
-    <PackageVersion Include="System.Memory" Version="4.6.0" />
+    <PackageVersion Include="System.Collections.Immutable" Version="10.0.11" />
+    <PackageVersion Include="System.Memory" Version="4.6.3" />
     <PackageVersion Include="System.Private.ServiceModel" Version="4.10.3" />
     <PackageVersion Include="System.Reflection.Metadata" Version="9.0.0" />
-    <PackageVersion Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.0" />
-    <PackageVersion Include="System.Text.Json" Version="9.0.0" />
-    <PackageVersion Include="System.Threading.Channels" Version="8.0.0" />
-    <PackageVersion Include="System.Threading.Tasks.Dataflow" Version="9.0.0" />
+    <PackageVersion Include="System.Runtime.CompilerServices.Unsafe" Version="6.1.2" />
+    <PackageVersion Include="System.Text.Json" Version="10.0.8" />
+    <PackageVersion Include="System.Threading.Channels" Version="9.0.19" />
+    <PackageVersion Include="System.Threading.Tasks.Dataflow" Version="10.0.8" />
     <!-- Transitive deps for security updates -->
     <PackageVersion Include="Microsoft.IO.Redist" Version="6.1.0" />
-    <PackageVersion Include="System.Formats.Asn1" Version="6.0.1" />
-    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="6.0.4" />
+    <PackageVersion Include="System.Formats.Asn1" Version="10.0.10" />
+    <PackageVersion Include="System.Security.Cryptography.Pkcs" Version="10.0.10" />
   </ItemGroup>
   <ItemGroup>
     <GlobalPackageReference Include="Microsoft.VisualStudioEng.MicroBuild.Core" Version="1.0.0" />

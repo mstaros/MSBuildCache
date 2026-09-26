@@ -71,65 +71,12 @@ jobs:
     artifact: '$(System.JobDisplayName) logs'
     condition: always()
 
-- job: E2ETestVS
-  displayName: E2E Tests using VS
-  dependsOn: Build
-  variables:
-    VsInstallDir: $(Build.ArtifactStagingDirectory)\vs
-    MSBuildPath: $(VsInstallDir)\MSBuild\Current\Bin\amd64\MSBuild.exe
-  steps:
-  - download: current
-    displayName: 'Download Build Artifacts'
-    artifact: artifacts
-
-  - checkout: self
-
-  # Avoiding Caching VS for now as the installer command we're using doesn't work for upgrades
-  # - task: Cache@2
-  #   displayName: Cache Visual Studio
-  #   inputs:
-  #     key: '"vs" | "$(Agent.OS)"'
-  #     path: $(VsInstallDir)
-
-  - script: |
-      del %TEMP%\vs_buildtools.exe
-      
-      curl.exe -L https://aka.ms/vs/18/stable/vs_buildtools.exe -o %TEMP%\vs_buildtools.exe
-      
-      %TEMP%\vs_buildtools.exe ^
-        --config "$(Build.SourcesDirectory)\.vsconfig" ^
-        --installPath "$(VsInstallDir)" ^
-        --passive ^
-        --norestart ^
-        --wait
-      echo VS installer exit code: %ERRORLEVEL%
-
-      del %TEMP%\vs_buildtools.exe
-
-      echo Copying installer logs
-      mkdir "$(LogDirectory)\VSSetup"
-      move "%TEMP%\dd_*" "$(LogDirectory)\VSSetup\"
-
-      echo Current MSBuild version:
-      "$(MSBuildPath)" --version
-    displayName: 'Install VS'
-
-  - template: templates\e2e-test.yml
-    parameters:
-      RepoRoot: $(Build.SourcesDirectory)
-      MSBuildPath: $(MSBuildPath)
-
-  - publish: $(LogDirectory)
-    displayName: Publish Logs
-    artifact: '$(System.JobDisplayName) logs'
-    condition: always()
-
 - job: E2ETestMSBuildRepo
   displayName: E2E Tests using tip of MSBuild repo
   dependsOn: Build
   variables:
     VsInstallDir: $(Build.ArtifactStagingDirectory)\vs
-    MSBuildPath: $(Build.SourcesDirectory)\msbuild\artifacts\bin\bootstrap\net472\MSBuild\Current\Bin\amd64\MSBuild.exe
+    MSBuildPath: $(Build.SourcesDirectory)\msbuild\artifacts\bin\bootstrap\core\dotnet.exe
   steps:
   - download: current
     displayName: 'Download Build Artifacts'

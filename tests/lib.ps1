@@ -72,6 +72,7 @@ function Invoke-MSBuildCacheBuild
     New-Item -ItemType Directory -Path $LogDirectory -Force > $null
 
     $arguments = @(
+        "-restore",
         "-graph",
         "-reportfileaccesses",
         "-p:MSBuildCachePackage=$CachePackage",
@@ -85,6 +86,11 @@ function Invoke-MSBuildCacheBuild
     {
         $value = ConvertTo-MSBuildCommandLinePropertyValue ([string] $ExtraProperties[$key])
         $arguments += "-p:$key=$value"
+    }
+
+    if ([System.IO.Path]::GetFileNameWithoutExtension($MSBuildPath) -eq "dotnet")
+    {
+        $arguments = @("msbuild") + $arguments
     }
 
     $stdout = Join-Path $LogDirectory "stdout.txt"

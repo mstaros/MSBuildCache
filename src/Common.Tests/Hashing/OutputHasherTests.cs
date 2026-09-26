@@ -30,11 +30,7 @@ public class OutputHasherTests
 
         string dir = CreateTestDirectory();
         string file = Path.Combine(dir, "file.txt");
-#if NETFRAMEWORK
-        File.WriteAllText(file, "someContent");
-#else
         await File.WriteAllTextAsync(file, "someContent");
-#endif
 
         ContentHash hash = await hasher.ComputeHashAsync(file, CancellationToken.None);
         ContentHash expectedHash = ContentHasher.GetContentHash(Encoding.Default.GetBytes("someContent"));

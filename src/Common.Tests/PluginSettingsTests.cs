@@ -46,11 +46,7 @@ public sealed class PluginSettingsTests
 
             // RepoRoot isn't included in the logging.
             bool isLogged = !property.Name.Equals(nameof(PluginSettings.RepoRoot), StringComparison.Ordinal);
-#if NETFRAMEWORK
-            Assert.AreEqual(isLogged, effectiveSettingsLogMessage.Contains($"{property.Name}:"));
-#else
             Assert.AreEqual(isLogged, effectiveSettingsLogMessage.Contains($"{property.Name}:", StringComparison.Ordinal));
-#endif
         }
     }
 

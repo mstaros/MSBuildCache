@@ -33,10 +33,6 @@ internal static class SerializationHelper
                 using (var streamReader = new StreamReader(
                     stream,
                     Encoding.UTF8,
-#if NETFRAMEWORK
-                    detectEncodingFromByteOrderMarks: true,
-                    bufferSize: 1024,
-#endif
                     leaveOpen: true))
                 {
                     string content = await streamReader.ReadToEndAsync(cancellationToken);

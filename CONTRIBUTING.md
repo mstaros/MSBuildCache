@@ -16,7 +16,7 @@ contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additio
 
 ### Building MSBuildCache
 
-You can build `MSBuildCache.sln` and/or open it in VS.
+Build `MSBuildCache.sln` with the configured .NET SDK (`dotnet build MSBuildCache.sln`). The packages and tests target net9.0; the MSBuild host must run on .NET 9 or later.
 
 ### Using a custom MSBuild (optional)
 
@@ -30,7 +30,7 @@ Build the msbuild repo:
 ```
 Note, MSBuild only needs to be built every time you update MSBuild, not every time you want to build MSBuildCache.
 
-The path to MSBuild is: `..\msbuild\artifacts\bin\bootstrap\net472\MSBuild\Current\Bin\amd64\MSBuild.exe`.
+Run the modern bootstrap with `..\msbuild\artifacts\bin\bootstrap\core\dotnet.exe msbuild`. Pass the path to that `dotnet.exe` as `-MSBuildPath` when running the smoke or scenario scripts.
 
 Note: when using a locally built MSBuild, many scenario may not work properly, for example C++ builds.
 

@@ -44,11 +44,7 @@ public class DirectoryFileHasherTests
         string absolutePath = Path.Combine(baseDir, relativePath);
         string fileContent = absolutePath; // Just use the file name itself as the content.
         Directory.CreateDirectory(Path.GetDirectoryName(absolutePath)!);
-#if NETFRAMEWORK
-        File.WriteAllText(absolutePath, fileContent);
-#else
         await File.WriteAllTextAsync(absolutePath, fileContent);
-#endif
 
         byte[]? hash = await hasher.GetHashAsync(absolutePath);
         if (expectedToHaveHash)

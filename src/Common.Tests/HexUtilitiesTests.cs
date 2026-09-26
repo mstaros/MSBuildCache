@@ -45,11 +45,7 @@ public class HexUtilitiesTests
 
         for (char c = '!'; c <= '~'; c++)
         {
-#if NETFRAMEWORK
-            if (!goodChars.Contains(c))
-#else
             if (!goodChars.Contains(c, StringComparison.Ordinal))
-#endif
             {
                 try
                 {

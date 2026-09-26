@@ -5,8 +5,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Microsoft.MSBuildCache.AzureBlobStorage;
-using Microsoft.MSBuildCache.AzurePipelines;
 using Microsoft.MSBuildCache.Tests;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -17,8 +15,6 @@ namespace Microsoft.MSBuildCache.Repack.Tests;
 public class RepackTests
 {
     [TestMethod]
-    [DataRow(typeof(MSBuildCacheAzureBlobStoragePlugin))]
-    [DataRow(typeof(MSBuildCacheAzurePipelinesPlugin))]
     [DataRow(typeof(MSBuildCacheLocalPlugin))]
     [DataRow(typeof(SharedCompilation.ResolveFileAccesses))]
     public void PluginInterfaceAssembliesNotMerged(Type typeToCheck)

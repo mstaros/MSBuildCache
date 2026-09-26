@@ -32,6 +32,8 @@
     </ItemGroup>
 
     <ItemGroup>
+      <!-- Native code cannot be IL-merged. Match BuildXL's X64/BuildXLNatives.dll import path. -->
+      <BuildOutputInPackage Include="@(NativeCopyLocalItems-&gt;WithMetadataValue('Filename', 'BuildXLNatives'));@(RuntimeTargetsCopyLocalItems-&gt;WithMetadataValue('Filename', 'BuildXLNatives'))" TargetPath="x64\BuildXLNatives.dll" />
       <!-- Somewhat hard-code these as there isn't a good way to identify them -->
       <BuildOutputInPackage Include="@(None-&gt;WithMetadataValue('Link', 'native\amd64\rocksdb.dll'))" TargetPath="%(None.Link)" />
       <BuildOutputInPackage Include="@(None-&gt;WithMetadataValue('Link', 'runtimes\win-x64\native\msalruntime.dll'))" TargetPath="%(None.Link)" />
@@ -41,6 +43,8 @@
   <!-- ILRepack -->
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <ILRepackEnabled>true</ILRepackEnabled>
+    <!-- ILRepack reads the output directory, including dependencies of .NET class libraries. -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup Condition=" '$(ILRepackEnabled)' == 'true' ">
@@ -67,7 +71,9 @@
   <Target Name="ILRepacker" AfterTargets="Build" Condition="'$(ILRepack)' != ''">
     <ItemGroup>
       <LibraryPaths Include="$(OutputPath)"/>
-      <LibraryPaths Include="$(PkgMicrosoft_Build_Framework)\lib\net472"/>
+      <!-- Resolve framework-provided assemblies without merging them into the plugin. -->
+      <LibraryPaths Include="@(ReferencePath-&gt;WithMetadataValue('FrameworkReferenceName', 'Microsoft.NETCore.App')-&gt;'%(RootDir)%(Directory)'-&gt;Distinct())" />
+      <LibraryPaths Include="@(ReferencePath-&gt;WithMetadataValue('Filename', 'Microsoft.Build.Framework')-&gt;'%(RootDir)%(Directory)'-&gt;Distinct())" />
     </ItemGroup>
 
     <ItemGroup>
@@ -77,8 +83,9 @@
     />
     </ItemGroup>
 
+    <!-- Hide ASP.NET server types from MSBuild's exported-type scan; runtime-generated bindings such as RocksDbSharp.Native must stay public. -->
     <PropertyGroup>
-      <IlRepackCommand>$(ILRepack) /allowduplicateresources /union /parallel /out:$(OutputPath)$(AssemblyName)$(TargetExt) @(LibraryPaths->'/lib:%(FullPath)', ' ')</IlRepackCommand>
+      <IlRepackCommand>$(ILRepack) /log:&quot;$(IntermediateOutputPath)ilrepack.log&quot; /internalizeassembly:Grpc.AspNetCore.Server /internalizeassembly:Grpc.AspNetCore.Server.ClientFactory /internalizeassembly:protobuf-net.Grpc.AspNetCore /allowduplicateresources /union /parallel /out:$(OutputPath)$(AssemblyName)$(TargetExt) @(LibraryPaths->'/lib:%(FullPath)', ' ')</IlRepackCommand>
       <IlRepackCommand Condition="'$(IlRepackVerbose)' == 'true'">$(IlRepackCommand) /verbose</IlRepackCommand>
       <IlRepackCommand Condition="'$(DelaySign)' == 'true'">$(IlRepackCommand) /delaysign</IlRepackCommand>
       <IlRepackCommand Condition="'$(AssemblyOriginatorKeyFile)' != ''">$(IlRepackCommand) /keyfile:$(AssemblyOriginatorKeyFile)</IlRepackCommand>
