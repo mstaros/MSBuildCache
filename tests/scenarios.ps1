@@ -204,6 +204,7 @@ function Invoke-ScenarioBuild
     ) -join ";"
 
     $properties = @{
+        Configuration = $Configuration
         # Skip writing outputs that match the cache — avoids cache-replay overwriting existing
         # outputs from a previous build in the same sandbox.
         MSBuildCacheSkipUnchangedOutputFiles = "true"

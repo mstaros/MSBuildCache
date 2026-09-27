@@ -21,6 +21,12 @@ function New-MSBuildCacheTestProject
         & git config user.name $GitUserName
         & git add . *> $null
         & git commit -m "init" *> $null
+        if ($LASTEXITCODE -ne 0) { throw "Could not initialize the copied test repository." }
+
+        # The source fixture may contain ignored output from a previous standalone build.
+        # Start the copied repository clean so the first reset cannot change its inputs.
+        & git clean -fdX *> $null
+        if ($LASTEXITCODE -ne 0) { throw "Could not clean inherited test fixture outputs." }
     }
     finally
     {
