@@ -52,6 +52,5 @@
   </ItemGroup>
   <ItemGroup>
     <GlobalPackageReference Include="Microsoft.VisualStudioEng.MicroBuild.Core" Version="1.0.0" />
-    <GlobalPackageReference Include="Nerdbank.GitVersioning" Version="3.9.50" />
   </ItemGroup>
 </Project>
