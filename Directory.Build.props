@@ -37,6 +37,24 @@
     <NoWarn>$(NoWarn);NU5104</NoWarn>
   </PropertyGroup>
 
+  <!-- Builds do not depend on the release: package versions and the commit are added when packing, so unchanged
+       sources compile to identical binaries in any checkout, hit the build cache and keep their published package.
+       The publisher keeps the commit out of compilation only when every project of the solution has these off. -->
+  <PropertyGroup>
+    <EnableSourceLink>false</EnableSourceLink>
+    <EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
+  </PropertyGroup>
+  <!-- Tests keep their embedded PDBs and real source paths. -->
+  <PropertyGroup Condition="$([MSBuild]::MakeRelative('$(MSBuildThisFileDirectory)', '$(MSBuildProjectDirectory)').StartsWith('src')) and !$(MSBuildProjectName.EndsWith('.Tests'))">
+    <!-- Frozen above every published 1.0.N.0, so consumers built against those still bind. -->
+    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+    <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+    <DebugType>none</DebugType>
+    <!-- Generated file-scoped types (for example from [GeneratedRegex]) are named from a hash of their file path. -->
+    <PathMap>$(MSBuildThisFileDirectory)=/_/</PathMap>
+  </PropertyGroup>
+
   <!-- Packaging -->
   <PropertyGroup>
     <Authors>Microsoft</Authors>
