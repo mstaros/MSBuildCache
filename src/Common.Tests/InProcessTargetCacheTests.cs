@@ -10,6 +10,8 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Build.Experimental.ProjectCache;
+using Microsoft.Build.Framework;
 using Microsoft.Build.Graph;
 using Microsoft.MSBuildCache.Tests.Mocks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -48,7 +50,7 @@ public sealed class InProcessTargetCacheTests
         async Task<string?> Execute(CancellationToken token)
         {
             executions++;
-            var nested = await fixture.Run(root, _ => Task.FromResult<string?>("nested passed"), "nested", token);
+            var nested = await fixture.Run(root, _ => Task.FromResult<string?>("nested passed"), "nested", cancellationToken: token);
             Assert.IsNotNull(nested.Result);
             return executions == 1 ? null : "passed";
         }
@@ -92,9 +94,72 @@ public sealed class InProcessTargetCacheTests
         Assert.IsFalse((await fixture.Run(root, _ => Task.FromResult<string?>("passed"))).Reused);
     }
 
+    [TestMethod]
+    public async Task RenamingAnExecutionInputInvalidatesTheCachedResult()
+    {
+        using Fixture fixture = new();
+        string root = fixture.CreateTree("tree");
+        int executions = 0;
+        Task<string?> Execute(CancellationToken _) => Task.FromResult<string?>((++executions).ToString(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.IsFalse((await fixture.Run(root, Execute)).Reused);
+        File.Move(Path.Combine(root, "tests", "runtime.dll"), Path.Combine(root, "tests", "renamed.dll"));
+        Assert.IsFalse((await fixture.Run(root, Execute)).Reused);
+        Assert.IsTrue((await fixture.Run(root, Execute)).Reused);
+        Assert.AreEqual(2, executions);
+    }
+
+    [TestMethod]
+    public async Task ConcurrentTargetsSharePredictionForTheirEvaluatedGraph()
+    {
+        using Fixture fixture = new();
+        string root = fixture.CreateTree("tree");
+        ProjectGraph graph = new(Path.Combine(root, "tests", "tests.proj"));
+        PredictionLogger logger = new();
+        int executions = 0;
+        await Task.WhenAll(Enumerable.Range(0, 4).Select(index => fixture.Run(root, _ =>
+        {
+            Interlocked.Increment(ref executions);
+            return Task.FromResult<string?>("passed");
+        }, "mode-" + index, graph: graph, logger: logger)));
+        Assert.AreEqual(1, logger.PredictionCount);
+        Assert.AreEqual(4, executions);
+    }
+
+    [TestMethod]
+    public async Task DisabledProjectExecutesEveryTimeWithoutOpeningTheCache()
+    {
+        using Fixture fixture = new();
+        string root = fixture.CreateTree("tree");
+        ProjectGraph graph = new(Path.Combine(root, "tests", "tests.proj"),
+            new Dictionary<string, string> { ["MSBuildCacheEnabled"] = "false" });
+        int executions = 0;
+        Task<string?> Execute(CancellationToken _) => Task.FromResult<string?>((++executions).ToString(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.IsFalse((await fixture.Run(root, Execute, graph: graph)).Reused);
+        Assert.IsFalse((await fixture.Run(root, Execute, graph: graph)).Reused);
+        Assert.AreEqual(2, executions);
+        Assert.IsFalse(Directory.Exists(fixture.CacheRoot));
+    }
+
+    private sealed class PredictionLogger : PluginLoggerBase
+    {
+        public int PredictionCount;
+        public override bool HasLoggedErrors { get; protected set; }
+        public override void LogError(string error) => HasLoggedErrors = true;
+        public override void LogWarning(string warning) { }
+        public override void LogMessage(string message, MessageImportance? messageImportance = null)
+        {
+            if (message.StartsWith("Executed project prediction on", StringComparison.Ordinal))
+            {
+                Interlocked.Increment(ref PredictionCount);
+            }
+        }
+    }
+
     private sealed class Fixture : IDisposable
     {
         private readonly string _directory = Path.Combine(Path.GetTempPath(), "MSBuildCacheTargetTests", Guid.NewGuid().ToString("N"));
+
+        public string CacheRoot => Path.Combine(_directory, "cache");
 
         public string CreateTree(string name)
         {
@@ -110,10 +175,11 @@ public sealed class InProcessTargetCacheTests
         }
 
         public Task<(string? Result, bool Reused)> Run(string root, Func<CancellationToken, Task<string?>> execute,
-            string mode = "parallel", CancellationToken cancellationToken = default)
+            string mode = "parallel", ProjectGraph? graph = null, PluginLoggerBase? logger = null,
+            CancellationToken cancellationToken = default)
         {
             string project = Path.Combine(root, "tests", "tests.proj");
-            ProjectGraph graph = new(project);
+            graph ??= new ProjectGraph(project);
             Dictionary<string, string> settings = new()
             {
                 ["LocalCacheRootPath"] = Path.Combine(_directory, "cache"),
@@ -126,9 +192,9 @@ public sealed class InProcessTargetCacheTests
             string[] sources = Directory.GetFiles(root, "*", SearchOption.AllDirectories)
                 .Where(p => p.EndsWith(".cs", StringComparison.Ordinal) || p.EndsWith(".proj", StringComparison.Ordinal)).ToArray();
             return MSBuildCacheLocalPlugin.RunTargetAsync(graph, project, "Test", sources,
-                [Path.Combine(root, "tests", "runtime.dll")],
+                Directory.GetFiles(Path.Combine(root, "tests"), "*.dll"),
                 new Dictionary<string, string> { ["Mode"] = mode }, root, settings,
-                NullPluginLogger.Instance, execute, cancellationToken);
+                logger ?? NullPluginLogger.Instance, execute, cancellationToken);
         }
 
         public void Dispose()
@@ -140,3 +206,4 @@ public sealed class InProcessTargetCacheTests
         }
     }
 }
+

@@ -115,6 +115,10 @@ The API starts no MSBuildCache or Git process. The callback owns execution. Retu
 Inputs come from the evaluated project dependency closure, including project-owned source/data and the caller's runtime closure. All behavior-affecting external inputs and execution options must be represented. This API does not infer arbitrary runtime reads; callers with unrepresented external state must return `null`.
 
 Results are stored as target-result metadata. `NodeBuildResult.Outputs` remains the set of observed writes from one build execution and must not be interpreted as a complete inventory of existing artifacts. The ordinary MSBuild plugin keeps its file-observation and output-replay behavior.
+
+Predictions are shared across calls using the same evaluated graph and repository root, including concurrent calls. Treat that graph as an immutable evaluation snapshot; evaluate a new graph when project evaluation changes. File fingerprints include normalized paths and contents. A requested project with `MSBuildCacheEnabled=false`, or `Enabled=false` in the supplied settings, executes the callback without prediction, cache lookup or publication.
+
+
 ## Concurrent builds
 
 The embedded local store has one owner at a time. An independent build sharing its cache

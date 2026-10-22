@@ -736,7 +736,7 @@ public sealed class FingerprintFactory : IFingerprintFactory
 
         foreach (KeyValuePair<string, byte[]?> kvp in filteredNormalizedFiles)
         {
-            entries.Add(new FingerprintEntry(kvp.Value, $"Input: {kvp.Key}"));
+            entries.Add(CreateFingerprintEntry($"Input: {kvp.Key}", kvp.Value ?? AbsentFileSentinel));
         }
 
         static async Task<(string, byte[]?)> WrapHashingTask(string normalizedFilePath, Task<byte[]?> hashTask) => (normalizedFilePath, await hashTask);

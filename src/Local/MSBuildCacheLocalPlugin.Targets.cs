@@ -47,6 +47,21 @@ public sealed partial class MSBuildCacheLocalPlugin
             throw new ArgumentException("A target name is required.", nameof(targetName));
         }
 
+        // The build targets honor MSBuildCacheEnabled before constructing the plugin. Direct
+        // callers need the same opt-out before prediction, fingerprinting or opening the store.
+        bool disabled = cacheSettings.TryGetValue("Enabled", out string? enabled)
+            && string.Equals(enabled, "false", StringComparison.OrdinalIgnoreCase);
+        string fullProjectPath = Path.GetFullPath(projectPath);
+        disabled |= graph.ProjectNodes.Any(node =>
+            string.Equals(node.ProjectInstance.FullPath, fullProjectPath, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(node.ProjectInstance.GetPropertyValue("MSBuildCacheEnabled"), "false", StringComparison.OrdinalIgnoreCase));
+        if (disabled)
+        {
+            string? result = await executeAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            return (result, false);
+        }
+
         PluginSettings settings = PluginSettings.Create<PluginSettings>(
             cacheSettings, logger, repositoryRoot, supportsProbeAndEnumerationCapture: false);
         string nugetRoot = Environment.GetEnvironmentVariable("NUGET_PACKAGES")
@@ -143,3 +158,4 @@ public sealed partial class MSBuildCacheLocalPlugin
         }
     }
 }
+

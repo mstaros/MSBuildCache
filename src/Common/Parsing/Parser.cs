@@ -2,10 +2,13 @@
 // Licensed under the MIT license. See LICENSE file in the project root for full license information.
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Threading;
 using Microsoft.Build.Execution;
 using Microsoft.Build.Experimental.ProjectCache;
 using Microsoft.Build.Graph;
@@ -21,6 +24,11 @@ internal record class ParserInfo(
 
 internal sealed class Parser
 {
+    // ProjectGraph is an evaluated snapshot. Share prediction across its target lookups, and let
+    // the weak graph key release the predictions when the caller finishes the graph session.
+    private static readonly ConditionalWeakTable<ProjectGraph,
+        ConcurrentDictionary<string, Lazy<IReadOnlyDictionary<ProjectGraphNode, ParserInfo>>>> Predictions = new();
+
     private readonly PluginLoggerBase _logger;
     private readonly string _repoRoot;
 
@@ -29,6 +37,12 @@ internal sealed class Parser
         _logger = logger;
         _repoRoot = repoRoot;
     }
+
+    public IReadOnlyDictionary<ProjectGraphNode, ParserInfo> ParseCached(ProjectGraph graph)
+        => Predictions.GetValue(graph, _ => new(StringComparer.OrdinalIgnoreCase))
+            .GetOrAdd(Path.TrimEndingDirectorySeparator(Path.GetFullPath(_repoRoot)),
+                _ => new Lazy<IReadOnlyDictionary<ProjectGraphNode, ParserInfo>>(
+                    () => Parse(graph), LazyThreadSafetyMode.ExecutionAndPublication)).Value;
 
     public IReadOnlyDictionary<ProjectGraphNode, ParserInfo> Parse(ProjectGraph graph)
     {

@@ -45,7 +45,7 @@ public sealed class NodeContext
         }
 
         Parsing.Parser parser = new(logger, settings.RepoRoot);
-        IReadOnlyDictionary<Microsoft.Build.Graph.ProjectGraphNode, Parsing.ParserInfo> predictions = parser.Parse(graph);
+        IReadOnlyDictionary<Microsoft.Build.Graph.ProjectGraphNode, Parsing.ParserInfo> predictions = parser.ParseCached(graph);
         HashSet<string> sources = new(sourceFiles.Select(Path.GetFullPath), StringComparer.OrdinalIgnoreCase);
         HashSet<string> inputs = new(executionInputs.Select(Path.GetFullPath), StringComparer.OrdinalIgnoreCase);
         SortedDictionary<string, string> properties = new(StringComparer.OrdinalIgnoreCase)
@@ -243,3 +243,4 @@ public sealed class NodeContext
         return id;
     }
 }
+
