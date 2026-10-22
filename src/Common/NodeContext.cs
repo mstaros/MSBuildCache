@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Build.Execution;
@@ -12,6 +13,110 @@ namespace Microsoft.MSBuildCache;
 
 public sealed class NodeContext
 {
+    /// <summary>
+    /// Creates a caller-executed target from the same project predictions and graph used by the plugin.
+    /// Source inputs are taken from the evaluated dependency closure. Execution inputs are actual files,
+    /// never an interpretation of a previous build's observed-write record as a full output inventory.
+    /// </summary>
+    public static NodeContext CreateForTarget(
+        Microsoft.Build.Graph.ProjectGraph graph, string projectPath, string targetName,
+        IReadOnlyCollection<string> sourceFiles, IReadOnlyCollection<string> executionInputs,
+        IReadOnlyDictionary<string, string> executionProperties, PluginSettings settings,
+        PathNormalizer normalizer, Microsoft.Build.Experimental.ProjectCache.PluginLoggerBase logger)
+    {
+        string fullProjectPath = Path.GetFullPath(projectPath);
+        HashSet<Microsoft.Build.Graph.ProjectGraphNode> closure = new();
+        Stack<Microsoft.Build.Graph.ProjectGraphNode> pending = new(graph.ProjectNodes.Where(
+            node => string.Equals(node.ProjectInstance.FullPath, fullProjectPath, StringComparison.OrdinalIgnoreCase)));
+        if (pending.Count == 0)
+        {
+            throw new ArgumentException("Project is absent from the evaluated graph.", nameof(projectPath));
+        }
+
+        while (pending.TryPop(out Microsoft.Build.Graph.ProjectGraphNode? node))
+        {
+            if (closure.Add(node))
+            {
+                foreach (Microsoft.Build.Graph.ProjectGraphNode dependency in node.ProjectReferences)
+                {
+                    pending.Push(dependency);
+                }
+            }
+        }
+
+        Parsing.Parser parser = new(logger, settings.RepoRoot);
+        IReadOnlyDictionary<Microsoft.Build.Graph.ProjectGraphNode, Parsing.ParserInfo> predictions = parser.Parse(graph);
+        HashSet<string> sources = new(sourceFiles.Select(Path.GetFullPath), StringComparer.OrdinalIgnoreCase);
+        HashSet<string> inputs = new(executionInputs.Select(Path.GetFullPath), StringComparer.OrdinalIgnoreCase);
+        SortedDictionary<string, string> properties = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["MSBuildCacheCallerTargetProtocol"] = "1"
+        };
+        HashSet<string> ignoredProperties = new(settings.GlobalPropertiesToIgnore, StringComparer.OrdinalIgnoreCase);
+        foreach (Microsoft.Build.Graph.ProjectGraphNode node in closure)
+        {
+            if (!predictions.TryGetValue(node, out Parsing.ParserInfo? prediction))
+            {
+                throw new InvalidOperationException("Target dependency is outside the cache repository: " + node.ProjectInstance.FullPath);
+            }
+
+            foreach (Parsing.PredictedInput input in prediction.Inputs)
+            {
+                if (sources.Contains(input.AbsolutePath) || !IsUnder(input.AbsolutePath, settings.RepoRoot))
+                {
+                    inputs.Add(input.AbsolutePath);
+                }
+            }
+
+            // Include project-owned fixtures and data even when a predictor does not understand their item type.
+            foreach (string source in sources)
+            {
+                if (IsUnder(source, node.ProjectInstance.Directory))
+                {
+                    inputs.Add(source);
+                }
+            }
+
+            SortedDictionary<string, string> configured = new(StringComparer.OrdinalIgnoreCase);
+            foreach (KeyValuePair<string, string> property in node.ProjectInstance.GlobalProperties)
+            {
+                if (!ignoredProperties.Contains(property.Key))
+                {
+                    configured[property.Key] = NormalizeValue(property.Value);
+                }
+            }
+
+            string identity = prediction.ProjectFileRelativePath + ":" + System.Text.Json.JsonSerializer.Serialize(configured);
+            properties["Configuration:" + identity] = node.ProjectInstance.GetPropertyValue("NETCoreSdkVersion");
+        }
+
+        foreach (KeyValuePair<string, string> property in executionProperties)
+        {
+            properties["Execution:" + property.Key] = NormalizeValue(property.Value);
+        }
+
+        Microsoft.Build.Graph.ProjectGraphNode representative = closure.First(node =>
+            string.Equals(node.ProjectInstance.FullPath, fullProjectPath, StringComparison.OrdinalIgnoreCase));
+        return new NodeContext(settings.LogDirectory, representative.ProjectInstance, Array.Empty<NodeContext>(),
+            Path.GetRelativePath(settings.RepoRoot, fullProjectPath), properties,
+            inputs.OrderBy(p => p, StringComparer.OrdinalIgnoreCase).ToArray(), referenceAssemblyRelativePath: null,
+            new HashSet<string>([targetName], StringComparer.OrdinalIgnoreCase));
+
+        string NormalizeValue(string value)
+        {
+            string root = Path.GetFullPath(settings.RepoRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            return string.Equals(value.TrimEnd('\\', '/'), root, StringComparison.OrdinalIgnoreCase)
+                ? "{RepoRoot}" : normalizer.Normalize(value.Replace('/', '\\'));
+        }
+
+        static bool IsUnder(string path, string directory)
+        {
+            string relative = Path.GetRelativePath(directory, path);
+            return !Path.IsPathRooted(relative) && relative != ".."
+                && !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal);
+        }
+    }
+
     private static readonly byte[] PropertyHashDelimiter = [0x01];
     private static readonly byte[] PropertyValueHashDelimiter = [0x02];
 

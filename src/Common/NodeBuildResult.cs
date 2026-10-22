@@ -32,7 +32,8 @@ public sealed class NodeBuildResult
     }
 
     // Use a sorted dictionary so the JSON output is deterministically sorted and easier to compare build-to-build.
-    // These paths are repo-relative.
+    // These paths are repo-relative. They are writes observed for this execution, not a complete
+    // inventory of existing artifacts. Incremental executions can legitimately record only a subset.
     public SortedDictionary<string, ContentHash> Outputs { get; }
 
     // Use a sorted dictionary so the JSON output is deterministically sorted and easier to compare build-to-build.

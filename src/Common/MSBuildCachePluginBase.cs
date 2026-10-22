@@ -1009,6 +1009,34 @@ public abstract class MSBuildCachePluginBase<TPluginSettings> : ProjectCachePlug
         }
     }
 
+    /// <summary>Opens a short cache ownership lifetime for library lookups and publications.</summary>
+    protected static async Task<IDisposable> AcquireCacheSessionLockAsync(
+        PluginSettings settings, PluginLoggerBase logger, CancellationToken cancellationToken)
+    {
+        await MSBuildCachePluginBase.SinglePluginInstanceLock.WaitAsync(cancellationToken);
+        DirectoryLock directoryLock = new(Path.Combine(settings.LocalCacheRootPath, "MSBuildCache.lock"), logger);
+        try
+        {
+            await directoryLock.AcquireAsync(cancellationToken);
+            return new CacheSessionLock(directoryLock);
+        }
+        catch
+        {
+            directoryLock.Dispose();
+            MSBuildCachePluginBase.SinglePluginInstanceLock.Release();
+            throw;
+        }
+    }
+
+    private sealed class CacheSessionLock(DirectoryLock directoryLock) : IDisposable
+    {
+        public void Dispose()
+        {
+            directoryLock.Dispose();
+            MSBuildCachePluginBase.SinglePluginInstanceLock.Release();
+        }
+    }
+
     private async Task AcquireLockAsync(PluginSettings settings, PluginLoggerBase logger, CancellationToken cancellationToken)
     {
         if (!MSBuildCachePluginBase.SinglePluginInstanceLock.Wait(millisecondsTimeout: 0, cancellationToken))

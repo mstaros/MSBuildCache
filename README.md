@@ -106,6 +106,15 @@ msbuild /graph /m /reportfileaccesses /t:Build;Test
 
 This not only provides the benefits of caching unit test execution, but also executes tests concurrently with other, unrelated, projects in the graph.
 
+### In-process target reuse
+
+`MSBuildCacheLocalPlugin.RunTargetAsync` reuses the existing project predictor, fingerprint factory, and Local CAS client for a caller-executed target. It accepts an already evaluated `ProjectGraph`, the project and target name, a source-file inventory, the actual executable/data input files, execution properties, the repository root, normal plugin settings, a logger, and an asynchronous callback.
+
+The API starts no MSBuildCache or Git process. The callback owns execution. Return a success payload to cache it, or `null` when the execution must not be reused. Exceptions, cancellation, and inputs changing during execution do not publish a successful result. Lookup and publication hold the embedded store lock briefly; the callback runs after that ownership has been released, allowing nested cached builds.
+
+Inputs come from the evaluated project dependency closure, including project-owned source/data and the caller's runtime closure. All behavior-affecting external inputs and execution options must be represented. This API does not infer arbitrary runtime reads; callers with unrepresented external state must return `null`.
+
+Results are stored as target-result metadata. `NodeBuildResult.Outputs` remains the set of observed writes from one build execution and must not be interpreted as a complete inventory of existing artifacts. The ordinary MSBuild plugin keeps its file-observation and output-replay behavior.
 ## Concurrent builds
 
 The embedded local store has one owner at a time. An independent build sharing its cache

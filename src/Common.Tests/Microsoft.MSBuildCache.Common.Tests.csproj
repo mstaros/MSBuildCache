@@ -15,5 +15,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Common\Microsoft.MSBuildCache.Common.csproj" />
+    <ProjectReference Include="../Local/Microsoft.MSBuildCache.Local.csproj" Aliases="CachedTargets" />
   </ItemGroup>
 </Project>

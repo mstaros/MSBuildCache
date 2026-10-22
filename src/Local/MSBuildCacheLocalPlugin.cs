@@ -18,7 +18,7 @@ using Microsoft.MSBuildCache.Caching;
 
 namespace Microsoft.MSBuildCache;
 
-public sealed class MSBuildCacheLocalPlugin : MSBuildCachePluginBase
+public sealed partial class MSBuildCacheLocalPlugin : MSBuildCachePluginBase
 {
     protected override HashType HashType => HashType.Murmur;
 
@@ -32,14 +32,23 @@ public sealed class MSBuildCacheLocalPlugin : MSBuildCachePluginBase
             throw new InvalidOperationException();
         }
 
-        FileLog fileLog = new(Path.Combine(Settings.LogDirectory, "CacheClient.log"));
+        return await CreateLocalCacheClientAsync(Settings, FingerprintFactory, ContentHasher, NugetPackageRoot, cancellationToken);
+    }
+
+    private static async Task<ICacheClient> CreateLocalCacheClientAsync(
+        PluginSettings settings, Microsoft.MSBuildCache.Fingerprinting.IFingerprintFactory fingerprintFactory,
+        IContentHasher contentHasher, string nugetPackageRoot, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Directory.CreateDirectory(settings.LogDirectory);
+        FileLog fileLog = new(Path.Combine(settings.LogDirectory, "CacheClient.log"));
 #pragma warning disable CA2000 // Dispose objects before losing scope. Expected to be disposed using Context.Logger.Dispose in the cache client implementation.
         Logger cacheLogger = new(fileLog);
 #pragma warning restore CA2000 // Dispose objects before losing scope
         Context context = new(cacheLogger);
 
 #pragma warning disable CA2000 // Dispose objects before losing scope. Expected to be disposed by TwoLevelCache
-        LocalCache cache = LocalCacheFactory.Create(cacheLogger, Settings.LocalCacheRootPath, Settings.LocalCacheSizeInMegabytes);
+        LocalCache cache = LocalCacheFactory.Create(cacheLogger, settings.LocalCacheRootPath, settings.LocalCacheSizeInMegabytes);
 #pragma warning restore CA2000 // Dispose objects before losing scope
 
         await cache.StartupAsync(context).ThrowIfFailure();
@@ -52,18 +61,18 @@ public sealed class MSBuildCacheLocalPlugin : MSBuildCachePluginBase
 
         return new CasCacheClient(
             context,
-            FingerprintFactory,
+            fingerprintFactory,
             cache,
             cacheSession,
             remoteCache: null,
-            ContentHasher,
-            Settings.RepoRoot,
-            NugetPackageRoot,
-            GetFileRealizationMode,
-            Settings.MaxConcurrentCacheContentOperations,
-            Settings.AsyncCachePublishing,
-            Settings.AsyncCacheMaterialization,
-            Settings.SkipUnchangedOutputFiles,
-            Settings.TouchOutputFiles);
+            contentHasher,
+            settings.RepoRoot,
+            nugetPackageRoot,
+            _ => BuildXL.Cache.ContentStore.Interfaces.Sessions.FileRealizationMode.CopyNoVerify,
+            settings.MaxConcurrentCacheContentOperations,
+            settings.AsyncCachePublishing,
+            settings.AsyncCacheMaterialization,
+            settings.SkipUnchangedOutputFiles,
+            settings.TouchOutputFiles);
     }
 }
