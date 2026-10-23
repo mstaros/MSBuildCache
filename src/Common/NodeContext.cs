@@ -68,15 +68,25 @@ public sealed class NodeContext
                 }
             }
 
-            // Include project-owned fixtures and data even when a predictor does not understand their item type.
-            foreach (string source in sources)
+            // Supplement predictions with declared content and copied data, including linked fixtures.
+            // Bare None items can include documentation through SDK globs.
+            foreach (ProjectItemInstance item in node.ProjectInstance.Items)
             {
-                if (IsUnder(source, node.ProjectInstance.Directory))
+                string copyToOutput = item.GetMetadataValue("CopyToOutputDirectory");
+                string copyToPublish = item.GetMetadataValue("CopyToPublishDirectory");
+                bool copiesToOutput = copyToOutput.Length != 0 && !copyToOutput.Equals("Never", StringComparison.OrdinalIgnoreCase);
+                bool copiesToPublish = copyToPublish.Length != 0 && !copyToPublish.Equals("Never", StringComparison.OrdinalIgnoreCase);
+                if (!item.ItemType.Equals("Content", StringComparison.OrdinalIgnoreCase) && !copiesToOutput && !copiesToPublish)
                 {
-                    inputs.Add(source);
+                    continue;
+                }
+
+                string path = item.GetMetadataValue("FullPath");
+                if (path.Length != 0 && (sources.Contains(path) || !IsUnder(path, settings.RepoRoot)))
+                {
+                    inputs.Add(path);
                 }
             }
-
             SortedDictionary<string, string> configured = new(StringComparer.OrdinalIgnoreCase);
             foreach (KeyValuePair<string, string> property in node.ProjectInstance.GlobalProperties)
             {
