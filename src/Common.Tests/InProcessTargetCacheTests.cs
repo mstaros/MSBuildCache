@@ -34,11 +34,14 @@ public sealed class InProcessTargetCacheTests
             Assert.IsFalse((await fixture.Run(first, Execute)).Reused);
             await File.WriteAllTextAsync(Path.Combine(second, "notes.md"), "Unrelated documentation");
             await File.WriteAllTextAsync(Path.Combine(second, "lib", "notes.md"), "Changed project-local documentation");
-            await File.WriteAllTextAsync(Path.Combine(second, "tests", "notes.md"), "Changed bare None documentation");
             await File.WriteAllTextAsync(Path.Combine(second, "lib", "unrelated", "Other.cs"), "public class ChangedSibling { }");
             Assert.IsTrue((await fixture.Run(second, Execute)).Reused);
             Assert.AreEqual(1, executions);
+            await File.WriteAllTextAsync(Path.Combine(second, "tests", "notes.md"), "Changed bare None documentation");
+            Assert.IsFalse((await fixture.Run(second, Execute)).Reused);
             await File.AppendAllTextAsync(Path.Combine(second, "lib", "Library.cs"), "// changed implementation");
+            Assert.IsFalse((await fixture.Run(second, Execute)).Reused);
+            await File.AppendAllTextAsync(Path.Combine(second, "lib", "settings.props"), "<!-- changed import -->");
             Assert.IsFalse((await fixture.Run(second, Execute)).Reused);
             await File.AppendAllTextAsync(Path.Combine(second, "tests", "fixture.json"), "changed content");
             Assert.IsFalse((await fixture.Run(second, Execute)).Reused);
@@ -49,7 +52,7 @@ public sealed class InProcessTargetCacheTests
             await File.AppendAllTextAsync(Path.Combine(second, "tests", "runtime.dll"), "changed runtime");
             Assert.IsFalse((await fixture.Run(second, Execute)).Reused);
             Assert.IsFalse((await fixture.Run(second, Execute, "serial")).Reused);
-            Assert.AreEqual(7, executions);
+            Assert.AreEqual(9, executions);
         }
         finally
         {
@@ -183,7 +186,7 @@ public sealed class InProcessTargetCacheTests
             Directory.CreateDirectory(Path.Combine(root, "lib", "unrelated"));
             Directory.CreateDirectory(Path.Combine(root, "tests"));
             Directory.CreateDirectory(Path.Combine(root, "data"));
-            File.WriteAllText(Path.Combine(root, "lib", "lib.proj"), "<Project><ItemGroup><Compile Include=\"Library.cs\" /></ItemGroup><Target Name=\"Build\" /></Project>");
+            File.WriteAllText(Path.Combine(root, "lib", "lib.proj"), "<Project><Import Project=\"settings.props\" /><ItemGroup><Compile Include=\"Library.cs\" /><None Include=\"Library.cs;settings.props\" /></ItemGroup><Target Name=\"Build\" /></Project>");
             File.WriteAllText(Path.Combine(root, "lib", "Library.cs"), "public class Library { }");
             File.WriteAllText(Path.Combine(root, "lib", "notes.md"), "Project-local documentation");
             File.WriteAllText(Path.Combine(root, "lib", "unrelated", "Other.cs"), "public class Sibling { }");
@@ -193,6 +196,7 @@ public sealed class InProcessTargetCacheTests
             File.WriteAllText(Path.Combine(root, "tests", "fixture.json"), "{}");
             File.WriteAllText(Path.Combine(root, "tests", "custom.json"), "{}");
             File.WriteAllText(Path.Combine(root, "data", "linked.json"), "{}");
+            File.WriteAllText(Path.Combine(root, "lib", "settings.props"), "<Project><PropertyGroup><FixtureValue>1</FixtureValue></PropertyGroup></Project>");
             File.WriteAllText(Path.Combine(root, "tests", "runtime.dll"), "identical compiled runtime");
             return root;
         }

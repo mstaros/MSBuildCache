@@ -69,7 +69,7 @@ public sealed class NodeContext
             }
 
             // Supplement predictions with declared content and copied data, including linked fixtures.
-            // Bare None items can include documentation through SDK globs.
+            // Other item types can declare copied fixtures through standard copy metadata.
             foreach (ProjectItemInstance item in node.ProjectInstance.Items)
             {
                 string copyToOutput = item.GetMetadataValue("CopyToOutputDirectory");
