@@ -4,6 +4,8 @@
     <Platform>x64</Platform>
     <Platforms>$(Platform)</Platforms>
     <TargetFramework>net9.0</TargetFramework>
+    <!-- Tests run on the patched runtime, which is newer than net9.0. -->
+    <RollForward>Major</RollForward>
     <RootNamespace>Microsoft.MSBuildCache.Tests</RootNamespace>
     <!-- Suppress "Avoid constant arrays as arguments". UTs have many one-off test data arrays. -->
     <NoWarn>$(NoWarn);CA1861</NoWarn>

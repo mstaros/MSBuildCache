@@ -36,7 +36,6 @@
       <BuildOutputInPackage Include="@(NativeCopyLocalItems-&gt;WithMetadataValue('Filename', 'BuildXLNatives'));@(RuntimeTargetsCopyLocalItems-&gt;WithMetadataValue('Filename', 'BuildXLNatives'))" TargetPath="x64\BuildXLNatives.dll" />
       <!-- Somewhat hard-code these as there isn't a good way to identify them -->
       <BuildOutputInPackage Include="@(None-&gt;WithMetadataValue('Link', 'native\amd64\rocksdb.dll'))" TargetPath="%(None.Link)" />
-      <BuildOutputInPackage Include="@(None-&gt;WithMetadataValue('Link', 'runtimes\win-x64\native\msalruntime.dll'))" TargetPath="%(None.Link)" />
     </ItemGroup>
   </Target>
 
@@ -76,16 +75,23 @@
       <LibraryPaths Include="@(ReferencePath-&gt;WithMetadataValue('Filename', 'Microsoft.Build.Framework')-&gt;'%(RootDir)%(Directory)'-&gt;Distinct())" />
     </ItemGroup>
 
+    <!-- BuildXL's cache packages also bring its distributed cache: Azure SDKs, Kusto, gRPC and protobuf, WCF and MSAL. The local
+         cache does not use them, so they are not merged; they stay in the output folder, where ILRepack resolves references to them. -->
+    <PropertyGroup>
+      <UnmergedAssemblies>$(OutputPath)Azure.*.dll;$(OutputPath)Microsoft.Azure.*.dll;$(OutputPath)Kusto.*.dll;$(OutputPath)Microsoft.Identity.*.dll;$(OutputPath)Microsoft.IdentityModel.*.dll;$(OutputPath)System.IdentityModel.*.dll;$(OutputPath)Grpc.*.dll;$(OutputPath)Google.Protobuf.dll;$(OutputPath)protobuf-net*.dll;$(OutputPath)System.ServiceModel*.dll;$(OutputPath)System.Private.ServiceModel.dll;$(OutputPath)System.ClientModel.dll;$(OutputPath)System.Memory.Data.dll</UnmergedAssemblies>
+    </PropertyGroup>
+
     <ItemGroup>
       <InputAssemblies 
         Include="$(OutputPath)$(AssemblyName)$(TargetExt);$(OutputPath)*.dll" 
-        Exclude="$(OutputPath)grpc_*.dll;$(OutputPath)Microsoft.Data.SqlClient.SNI.*.dll;@(PluginAssemblies->'$(OutputPath)%(Filename)%(Extension)', ';')"
+        Exclude="$(OutputPath)grpc_*.dll;$(OutputPath)Microsoft.Data.SqlClient.SNI.*.dll;$(UnmergedAssemblies);@(PluginAssemblies->'$(OutputPath)%(Filename)%(Extension)', ';')"
     />
     </ItemGroup>
 
-    <!-- Hide ASP.NET server types from MSBuild's exported-type scan; runtime-generated bindings such as RocksDbSharp.Native must stay public. -->
+    <!-- Public types in these BuildXL assemblies derive from or implement unmerged gRPC and Azure types; internalizing them keeps MSBuild's
+         exported-type scan from loading those assemblies. No blanket /internalize: runtime-generated bindings such as RocksDbSharp.Native must stay public. -->
     <PropertyGroup>
-      <IlRepackCommand>$(ILRepack) /log:&quot;$(IntermediateOutputPath)ilrepack.log&quot; /internalizeassembly:Grpc.AspNetCore.Server /internalizeassembly:Grpc.AspNetCore.Server.ClientFactory /internalizeassembly:protobuf-net.Grpc.AspNetCore /allowduplicateresources /union /parallel /out:$(OutputPath)$(AssemblyName)$(TargetExt) @(LibraryPaths->'/lib:%(FullPath)', ' ')</IlRepackCommand>
+      <IlRepackCommand>$(ILRepack) /log:&quot;$(IntermediateOutputPath)ilrepack.log&quot; /internalizeassembly:BuildXL.Cache.ContentStore.Grpc /internalizeassembly:BuildXL.Cache.ContentStore.Distributed /internalizeassembly:BuildXL.Cache.ContentStore /internalizeassembly:BuildXL.Cache.MemoizationStore /internalizeassembly:BuildXL.Cache.ContentStore.Interfaces /internalizeassembly:BuildXL.Utilities /allowduplicateresources /union /parallel /out:$(OutputPath)$(AssemblyName)$(TargetExt) @(LibraryPaths->'/lib:%(FullPath)', ' ')</IlRepackCommand>
       <IlRepackCommand Condition="'$(IlRepackVerbose)' == 'true'">$(IlRepackCommand) /verbose</IlRepackCommand>
       <IlRepackCommand Condition="'$(DelaySign)' == 'true'">$(IlRepackCommand) /delaysign</IlRepackCommand>
       <IlRepackCommand Condition="'$(AssemblyOriginatorKeyFile)' != ''">$(IlRepackCommand) /keyfile:$(AssemblyOriginatorKeyFile)</IlRepackCommand>
