@@ -84,6 +84,9 @@ public sealed class FingerprintFactory : IFingerprintFactory
 
         _pluginSettingsFingerprintEntries.Add(
             CreateFingerprintEntry($"{nameof(pluginSettings.EnableProbeAndEnumerationFingerprinting)}: {pluginSettings.EnableProbeAndEnumerationFingerprinting}"));
+
+        // Entries recorded before outputs included unchanged clean-list files can lack copied dependencies; never reuse them.
+        _pluginSettingsFingerprintEntries.Add(CreateFingerprintEntry("Outputs: observed writes and existing clean-list files"));
     }
 
     public async Task<Fingerprint?> GetWeakFingerprintAsync(NodeContext nodeContext)

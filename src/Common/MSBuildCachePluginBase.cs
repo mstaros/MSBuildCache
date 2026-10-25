@@ -673,6 +673,24 @@ public abstract class MSBuildCachePluginBase<TPluginSettings> : ProjectCachePlug
 
         Dictionary<string, string> outputPathToRelativePath = new(StringComparer.OrdinalIgnoreCase);
         using var observedOutputsWriter = new StreamWriter(Path.Combine(nodeContext.LogDirectory, "observedOutputs.txt"));
+
+        bool MatchesIgnoredOutputPattern(string path)
+        {
+            if (_ignoredOutputPatterns != null && _ignoredOutputPatterns.Count > 0)
+            {
+                foreach (Glob ignoredOutputPattern in _ignoredOutputPatterns)
+                {
+                    if (ignoredOutputPattern.IsMatch(path))
+                    {
+                        logger.LogMessage($"Ignoring output {path} due to matching ignored output pattern: {ignoredOutputPattern}");
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
         foreach (string output in fileAccesses.Outputs)
         {
             if (File.Exists(output))
@@ -680,23 +698,6 @@ public abstract class MSBuildCachePluginBase<TPluginSettings> : ProjectCachePlug
                 if (MatchesIgnoredOutputPattern(output))
                 {
                     continue;
-                }
-
-                bool MatchesIgnoredOutputPattern(string path)
-                {
-                    if (_ignoredOutputPatterns != null && _ignoredOutputPatterns.Count > 0)
-                    {
-                        foreach (Glob ignoredOutputPattern in _ignoredOutputPatterns)
-                        {
-                            if (ignoredOutputPattern.IsMatch(path))
-                            {
-                                logger.LogMessage($"Ignoring output {path} due to matching ignored output pattern: {ignoredOutputPattern}");
-                                return true;
-                            }
-                        }
-                    }
-
-                    return false;
                 }
 
                 string? relativeFilePath = output.MakePathRelativeTo(_repoRoot!);
@@ -716,6 +717,45 @@ public abstract class MSBuildCachePluginBase<TPluginSettings> : ProjectCachePlug
                 // temporary files which are created and then deleted during the build by the same project, so ignore.
                 logger.LogMessage($"Ignoring output which no longer exists: {output}");
             }
+        }
+
+        // Incremental MSBuild skips copies and targets whose outputs are already current, so this run did not rewrite them
+        // and file accesses miss them; an entry without them leaves older copies in place wherever it is replayed. The
+        // project's clean list names the files its build owns, so record the existing ones this run did not write.
+        HashSet<string> recordedOutputs = new(outputPathToRelativePath.Values, StringComparer.OrdinalIgnoreCase);
+        foreach (string listedOutput in ReadCleanList(nodeContext.ProjectInstance))
+        {
+            if (!File.Exists(listedOutput) || MatchesIgnoredOutputPattern(listedOutput))
+            {
+                continue;
+            }
+
+            string? relativeFilePath = listedOutput.MakePathRelativeTo(_repoRoot!);
+            if (relativeFilePath == null || _outputProducer.ContainsKey(relativeFilePath) || !recordedOutputs.Add(relativeFilePath))
+            {
+                continue;
+            }
+
+            outputPathToRelativePath.Add(listedOutput, relativeFilePath);
+            await observedOutputsWriter.WriteLineAsync(relativeFilePath);
+        }
+
+        static IEnumerable<string> ReadCleanList(ProjectInstance project)
+        {
+            string intermediateOutputPath = project.GetPropertyValue("IntermediateOutputPath");
+            string cleanFile = project.GetPropertyValue("CleanFile");
+            if (string.IsNullOrEmpty(intermediateOutputPath) || string.IsNullOrEmpty(cleanFile))
+            {
+                return Array.Empty<string>();
+            }
+
+            string cleanListPath = Path.Combine(project.Directory, intermediateOutputPath, cleanFile);
+            return File.Exists(cleanListPath)
+                ? File.ReadLines(cleanListPath)
+                    .Where(line => !string.IsNullOrWhiteSpace(line))
+                    .Select(line => Path.GetFullPath(Path.Combine(project.Directory, line.Trim())))
+                    .ToArray()
+                : Array.Empty<string>();
         }
 
         PathSet? pathSet = FingerprintFactory.GetPathSet(nodeContext, fileAccesses.Observations);
