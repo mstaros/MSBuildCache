@@ -110,7 +110,7 @@ public sealed class WarningPolicyTests
 
         ProcessStartInfo startInfo = new()
         {
-            FileName = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet",
+            FileName = ResolveSdkDotnet(),
             WorkingDirectory = testDirectory,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -140,6 +140,22 @@ public sealed class WarningPolicyTests
 
         string output = await standardOutput + await standardError;
         return new BuildInvocationResult(output);
+    }
+
+    // The test host can be a runtime without SDKs (CSharpMpc runs tests on its patched runtime), so prefer the SDK host
+    // CSharpMpc names, then the host running this process, using each only when its installation has SDKs.
+    private static string ResolveSdkDotnet()
+    {
+        foreach (string? candidate in new[] { Environment.GetEnvironmentVariable("CSHARPMPC_SDK_DOTNET"), Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") })
+        {
+            string? path = candidate?.Trim().Trim('"');
+            if (!string.IsNullOrEmpty(path) && File.Exists(path) && Directory.Exists(Path.Combine(Path.GetDirectoryName(path)!, "sdk")))
+            {
+                return path;
+            }
+        }
+
+        return "dotnet";
     }
 
     private static string FindCommonTargetsPath()
