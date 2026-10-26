@@ -126,6 +126,12 @@ public class PluginSettings
 
     public IReadOnlyCollection<Glob> IgnoredInputPatterns { get; init; } = Array.Empty<Glob>();
 
+    /// <summary>
+    /// Directories outside the repository and the NuGet package root, such as sibling repositories, whose files are
+    /// hashed by content when a build reads them. Files read anywhere else outside the repository stay out of fingerprints.
+    /// </summary>
+    public IReadOnlyList<string> AdditionalInputRoots { get; init; } = Array.Empty<string>();
+
     public IReadOnlyCollection<Glob> IgnoredOutputPatterns { get; init; } = Array.Empty<Glob>();
 
     public IReadOnlyCollection<Glob> IdenticalDuplicateOutputPatterns { get; init; } = Array.Empty<Glob>();

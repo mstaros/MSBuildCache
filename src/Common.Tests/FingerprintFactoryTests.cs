@@ -59,6 +59,62 @@ public class FingerprintFactoryTests
     }
 
     /// <summary>
+    /// Additional input roots change which reads count, so configuring them adds one plugin-settings entry and keeps
+    /// their entries apart from entries recorded without them.
+    /// </summary>
+    [TestMethod]
+    public void AdditionalInputRootsSegregateWeakFingerprints()
+    {
+        using IContentHasher contentHasher = HashInfoLookup.Find(HashType.Murmur).CreateContentHasher();
+        var pathNormalizer = new PathNormalizer(@"X:\Repo", @"X:\Nuget");
+        PluginSettings without = new TestPluginSettings { RepoRoot = @"X:\Repo" };
+        PluginSettings with = new TestPluginSettings { RepoRoot = @"X:\Repo", AdditionalInputRoots = [@"Y:\Siblings"] };
+
+        List<FingerprintEntry> entriesWithout = GetPluginSettingsFingerprintEntries(new FingerprintFactory(contentHasher, new NoopInputHasher(), without, pathNormalizer));
+        List<FingerprintEntry> entriesWith = GetPluginSettingsFingerprintEntries(new FingerprintFactory(contentHasher, new NoopInputHasher(), with, pathNormalizer));
+
+        Assert.AreEqual(entriesWithout.Count + 1, entriesWith.Count);
+        Assert.IsTrue(entriesWith.Any(e => e.Description.Contains(@"AdditionalInputRoots: Y:\Siblings", StringComparison.OrdinalIgnoreCase)));
+    }
+
+    /// <summary>
+    /// A file under an additional root is hashed by content. Untracked files in the repository, even under that root,
+    /// and files outside every root are not.
+    /// </summary>
+    [TestMethod]
+    public async Task AdditionalInputRootsHashFilesOutsideTheRepository()
+    {
+        using IContentHasher contentHasher = HashInfoLookup.Find(HashType.Murmur).CreateContentHasher();
+        string root = Path.Combine(Path.GetTempPath(), "msbuildcache-additional-root-" + Guid.NewGuid().ToString("N"));
+        string elsewhere = Path.Combine(Path.GetTempPath(), "msbuildcache-elsewhere-" + Guid.NewGuid().ToString("N"));
+        string repository = Path.Combine(root, "repo");
+        Directory.CreateDirectory(Path.Combine(repository, "obj"));
+        Directory.CreateDirectory(Path.Combine(root, "sibling"));
+        Directory.CreateDirectory(elsewhere);
+        try
+        {
+            string sibling = Path.Combine(root, "sibling", "Library.cs");
+            string untracked = Path.Combine(repository, "obj", "project.assets.json");
+            string outside = Path.Combine(elsewhere, "Library.cs");
+            WriteTextSync(sibling, "public class Library { }");
+            WriteTextSync(untracked, "{ \"projectPath\": \"" + repository.Replace("\\", "\\\\", StringComparison.Ordinal) + "\" }");
+            WriteTextSync(outside, "public class Library { }");
+
+            IInputHasher hasher = MSBuildCachePluginBase.ComposeInputHasher(
+                new NoopInputHasher(), new NoopInputHasher(), [root], repository, contentHasher);
+
+            Assert.IsNotNull(await hasher.GetHashAsync(sibling));
+            Assert.IsNull(await hasher.GetHashAsync(untracked), "Untracked repository files stay out of fingerprints.");
+            Assert.IsNull(await hasher.GetHashAsync(outside));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+            Directory.Delete(elsewhere, recursive: true);
+        }
+    }
+
+    /// <summary>
     /// Sentinels are derived from the configured <see cref="IContentHasher"/> so they're the right
     /// byte length for the active <see cref="HashType"/>. Two factory instances using the same hash type must
     /// produce bit-identical sentinels — that's the cross-machine stability guarantee that lets the type-aware

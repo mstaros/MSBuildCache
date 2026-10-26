@@ -11,6 +11,7 @@
     <MSBuildCacheGlobalPropertiesToIgnore>$(MSBuildCacheGlobalPropertiesToIgnore);MSBuildCacheLocalCacheRootPath</MSBuildCacheGlobalPropertiesToIgnore>
     <MSBuildCacheGlobalPropertiesToIgnore>$(MSBuildCacheGlobalPropertiesToIgnore);MSBuildCacheLocalCacheSizeInMegabytes</MSBuildCacheGlobalPropertiesToIgnore>
     <MSBuildCacheGlobalPropertiesToIgnore>$(MSBuildCacheGlobalPropertiesToIgnore);MSBuildCacheIgnoredInputPatterns</MSBuildCacheGlobalPropertiesToIgnore>
+    <MSBuildCacheGlobalPropertiesToIgnore>$(MSBuildCacheGlobalPropertiesToIgnore);MSBuildCacheAdditionalInputRoots</MSBuildCacheGlobalPropertiesToIgnore>
     <MSBuildCacheGlobalPropertiesToIgnore>$(MSBuildCacheGlobalPropertiesToIgnore);MSBuildCacheIgnoredOutputPatterns</MSBuildCacheGlobalPropertiesToIgnore>
     <MSBuildCacheGlobalPropertiesToIgnore>$(MSBuildCacheGlobalPropertiesToIgnore);MSBuildCacheIdenticalDuplicateOutputPatterns</MSBuildCacheGlobalPropertiesToIgnore>
     <MSBuildCacheGlobalPropertiesToIgnore>$(MSBuildCacheGlobalPropertiesToIgnore);MSBuildCacheRemoteCacheIsReadOnly</MSBuildCacheGlobalPropertiesToIgnore>
@@ -37,6 +38,7 @@
       <LocalCacheRootPath>$(MSBuildCacheLocalCacheRootPath)</LocalCacheRootPath>
       <LocalCacheSizeInMegabytes>$(MSBuildCacheLocalCacheSizeInMegabytes)</LocalCacheSizeInMegabytes>
       <IgnoredInputPatterns>$(MSBuildCacheIgnoredInputPatterns)</IgnoredInputPatterns>
+      <AdditionalInputRoots>$(MSBuildCacheAdditionalInputRoots)</AdditionalInputRoots>
       <IgnoredOutputPatterns>$(MSBuildCacheIgnoredOutputPatterns)</IgnoredOutputPatterns>
       <IdenticalDuplicateOutputPatterns>$(MSBuildCacheIdenticalDuplicateOutputPatterns)</IdenticalDuplicateOutputPatterns>
       <RemoteCacheIsReadOnly>$(MSBuildCacheRemoteCacheIsReadOnly)</RemoteCacheIsReadOnly>

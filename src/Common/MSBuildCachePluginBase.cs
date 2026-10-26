@@ -188,8 +188,18 @@ public abstract class MSBuildCachePluginBase<TPluginSettings> : ProjectCachePlug
 
         DirectoryFileHasher nugetPackageDirectoryHasher = new(NugetPackageRoot, ContentHasher);
 
-        return new CompositeInputHasher([sourceControlFileHasher, nugetPackageDirectoryHasher]);
+        return ComposeInputHasher(sourceControlFileHasher, nugetPackageDirectoryHasher,
+            Settings?.AdditionalInputRoots ?? Array.Empty<string>(), _repoRoot!, ContentHasher);
     }
+
+    // Additional roots, such as sibling repositories, are hashed by content after the repository and the package root.
+    // They never claim files under the repository: its untracked files (intermediate outputs, restore state with
+    // absolute paths) stay out of fingerprints as before. Files read anywhere else outside the repository stay out too.
+    internal static IInputHasher ComposeInputHasher(
+        IInputHasher repository, IInputHasher packages, IEnumerable<string> additionalRoots, string repositoryRoot,
+        IContentHasher contentHasher)
+        => new CompositeInputHasher([repository, packages,
+            .. additionalRoots.Select(root => new DirectoryFileHasher(Path.GetFullPath(root), contentHasher, Path.GetFullPath(repositoryRoot)))]);
 
     protected virtual IFingerprintFactory CreateFingerprintFactory()
     {

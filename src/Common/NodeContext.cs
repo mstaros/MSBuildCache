@@ -55,16 +55,25 @@ public sealed class NodeContext
         HashSet<string> ignoredProperties = new(settings.GlobalPropertiesToIgnore, StringComparer.OrdinalIgnoreCase);
         foreach (Microsoft.Build.Graph.ProjectGraphNode node in closure)
         {
-            if (!predictions.TryGetValue(node, out Parsing.ParserInfo? prediction))
+            if (predictions.TryGetValue(node, out Parsing.ParserInfo? prediction))
             {
-                throw new InvalidOperationException("Target dependency is outside the cache repository: " + node.ProjectInstance.FullPath);
-            }
-
-            foreach (Parsing.PredictedInput input in prediction.Inputs)
-            {
-                if (sources.Contains(input.AbsolutePath) || !IsUnder(input.AbsolutePath, settings.RepoRoot))
+                foreach (Parsing.PredictedInput input in prediction.Inputs)
                 {
-                    inputs.Add(input.AbsolutePath);
+                    if (sources.Contains(input.AbsolutePath) || !IsUnder(input.AbsolutePath, settings.RepoRoot))
+                    {
+                        inputs.Add(input.AbsolutePath);
+                    }
+                }
+            }
+            else
+            {
+                // The parser predicts only projects under the repository root. A project outside it, such as one in a
+                // sibling repository, is described by its project file and the assembly the caller's build produced.
+                inputs.Add(node.ProjectInstance.FullPath);
+                string targetPath = node.ProjectInstance.GetPropertyValue("TargetPath");
+                if (targetPath.Length != 0)
+                {
+                    inputs.Add(Path.GetFullPath(Path.Combine(node.ProjectInstance.Directory, targetPath)));
                 }
             }
 
@@ -96,7 +105,7 @@ public sealed class NodeContext
                 }
             }
 
-            string identity = prediction.ProjectFileRelativePath + ":" + System.Text.Json.JsonSerializer.Serialize(configured);
+            string identity = (prediction?.ProjectFileRelativePath ?? node.ProjectInstance.FullPath) + ":" + System.Text.Json.JsonSerializer.Serialize(configured);
             properties["Configuration:" + identity] = node.ProjectInstance.GetPropertyValue("NETCoreSdkVersion");
         }
 

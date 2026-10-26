@@ -20,13 +20,18 @@ internal sealed class DirectoryFileHasher : IInputHasher
 
     private readonly IContentHasher _contentHasher;
 
-    public DirectoryFileHasher(string directory, IContentHasher contentHasher)
+    private readonly string? _excludedDirectory;
+
+    public DirectoryFileHasher(string directory, IContentHasher contentHasher, string? excludedDirectory = null)
     {
         _directory = directory;
         _contentHasher = contentHasher;
+        _excludedDirectory = excludedDirectory;
     }
 
-    public bool ContainsPath(string absolutePath) => absolutePath.IsUnderDirectory(_directory);
+    public bool ContainsPath(string absolutePath)
+        => absolutePath.IsUnderDirectory(_directory)
+            && (_excludedDirectory is null || !absolutePath.IsUnderDirectory(_excludedDirectory));
 
     public async ValueTask<byte[]?> GetHashAsync(string absolutePath)
     {

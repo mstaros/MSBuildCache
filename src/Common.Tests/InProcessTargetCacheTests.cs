@@ -61,6 +61,40 @@ public sealed class InProcessTargetCacheTests
     }
 
     [TestMethod]
+    public async Task ExternalDependencyIsDescribedByItsProjectAndOutput()
+    {
+        using Fixture fixture = new();
+        string root = fixture.CreateTree("tree");
+
+        // A project outside the repository root, as in a sibling repository.
+        string external = Path.Combine(Path.GetDirectoryName(fixture.CacheRoot)!, "sibling");
+        string externalProject = Path.Combine(external, "external.proj");
+        string externalOutput = Path.Combine(external, "bin", "external.dll");
+        Directory.CreateDirectory(Path.GetDirectoryName(externalOutput)!);
+        await File.WriteAllTextAsync(externalOutput, "external assembly");
+        static string ExternalProjectXml(string value)
+            => "<Project><PropertyGroup><TargetPath>bin\\external.dll</TargetPath><FixtureValue>" + value
+                + "</FixtureValue></PropertyGroup><Target Name=\"Build\" /></Project>";
+        await File.WriteAllTextAsync(externalProject, ExternalProjectXml("1"));
+        string testsProject = Path.Combine(root, "tests", "tests.proj");
+        string tests = await File.ReadAllTextAsync(testsProject);
+        await File.WriteAllTextAsync(testsProject, tests.Replace(
+            "<ProjectReference Include=\"../lib/lib.proj\" />",
+            "<ProjectReference Include=\"../lib/lib.proj\" /><ProjectReference Include=\"" + externalProject + "\" />",
+            StringComparison.Ordinal));
+
+        int executions = 0;
+        Task<string?> Execute(CancellationToken _) => Task.FromResult<string?>((++executions).ToString(System.Globalization.CultureInfo.InvariantCulture));
+        Assert.IsFalse((await fixture.Run(root, Execute)).Reused);
+        Assert.IsTrue((await fixture.Run(root, Execute)).Reused);
+        await File.WriteAllTextAsync(externalOutput, "changed external assembly");
+        Assert.IsFalse((await fixture.Run(root, Execute)).Reused);
+        await File.WriteAllTextAsync(externalProject, ExternalProjectXml("2"));
+        Assert.IsFalse((await fixture.Run(root, Execute)).Reused);
+        Assert.AreEqual(3, executions);
+    }
+
+    [TestMethod]
     public async Task FailureIsNotCachedAndNestedCacheUseDoesNotHoldTheStoreLock()
     {
         using Fixture fixture = new();

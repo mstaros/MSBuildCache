@@ -87,6 +87,13 @@ public sealed class FingerprintFactory : IFingerprintFactory
 
         // Entries recorded before outputs included unchanged clean-list files can lack copied dependencies; never reuse them.
         _pluginSettingsFingerprintEntries.Add(CreateFingerprintEntry("Outputs: observed writes and existing clean-list files"));
+
+        // Hashing additional roots changes which reads count; entries recorded without them must not be reused.
+        if (pluginSettings.AdditionalInputRoots.Count > 0)
+        {
+            _pluginSettingsFingerprintEntries.Add(CreateFingerprintEntry("AdditionalInputRoots: " + string.Join(";",
+                pluginSettings.AdditionalInputRoots.Select(System.IO.Path.GetFullPath).Order(StringComparer.OrdinalIgnoreCase))));
+        }
     }
 
     public async Task<Fingerprint?> GetWeakFingerprintAsync(NodeContext nodeContext)
