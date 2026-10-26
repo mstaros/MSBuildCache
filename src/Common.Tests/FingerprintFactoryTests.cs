@@ -78,8 +78,8 @@ public class FingerprintFactoryTests
     }
 
     /// <summary>
-    /// A file under an additional root is hashed by content. Untracked files in the repository, even under that root,
-    /// and files outside every root are not.
+    /// A file under an additional root is hashed by content. Files in an excluded directory under that root (the
+    /// repository's untracked files, the temporary directory) and files outside every root are not.
     /// </summary>
     [TestMethod]
     public async Task AdditionalInputRootsHashFilesOutsideTheRepository()
@@ -88,7 +88,9 @@ public class FingerprintFactoryTests
         string root = Path.Combine(Path.GetTempPath(), "msbuildcache-additional-root-" + Guid.NewGuid().ToString("N"));
         string elsewhere = Path.Combine(Path.GetTempPath(), "msbuildcache-elsewhere-" + Guid.NewGuid().ToString("N"));
         string repository = Path.Combine(root, "repo");
+        string temporary = Path.Combine(root, "temp");
         Directory.CreateDirectory(Path.Combine(repository, "obj"));
+        Directory.CreateDirectory(temporary);
         Directory.CreateDirectory(Path.Combine(root, "sibling"));
         Directory.CreateDirectory(elsewhere);
         try
@@ -99,12 +101,15 @@ public class FingerprintFactoryTests
             WriteTextSync(sibling, "public class Library { }");
             WriteTextSync(untracked, "{ \"projectPath\": \"" + repository.Replace("\\", "\\\\", StringComparison.Ordinal) + "\" }");
             WriteTextSync(outside, "public class Library { }");
+            string scratch = Path.Combine(temporary, "tmp4F2A.cmd");
+            WriteTextSync(scratch, "exit 0");
 
             IInputHasher hasher = MSBuildCachePluginBase.ComposeInputHasher(
-                new NoopInputHasher(), new NoopInputHasher(), [root], repository, contentHasher);
+                new NoopInputHasher(), new NoopInputHasher(), [root], [repository, temporary], contentHasher);
 
             Assert.IsNotNull(await hasher.GetHashAsync(sibling));
             Assert.IsNull(await hasher.GetHashAsync(untracked), "Untracked repository files stay out of fingerprints.");
+            Assert.IsNull(await hasher.GetHashAsync(scratch), "Temporary files stay out of fingerprints.");
             Assert.IsNull(await hasher.GetHashAsync(outside));
         }
         finally

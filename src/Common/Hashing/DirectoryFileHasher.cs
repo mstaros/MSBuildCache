@@ -3,7 +3,9 @@
 
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using BuildXL.Cache.ContentStore.Hashing;
 
@@ -20,18 +22,18 @@ internal sealed class DirectoryFileHasher : IInputHasher
 
     private readonly IContentHasher _contentHasher;
 
-    private readonly string? _excludedDirectory;
+    private readonly IReadOnlyList<string> _excludedDirectories;
 
-    public DirectoryFileHasher(string directory, IContentHasher contentHasher, string? excludedDirectory = null)
+    public DirectoryFileHasher(string directory, IContentHasher contentHasher, IReadOnlyList<string>? excludedDirectories = null)
     {
         _directory = directory;
         _contentHasher = contentHasher;
-        _excludedDirectory = excludedDirectory;
+        _excludedDirectories = excludedDirectories ?? Array.Empty<string>();
     }
 
     public bool ContainsPath(string absolutePath)
         => absolutePath.IsUnderDirectory(_directory)
-            && (_excludedDirectory is null || !absolutePath.IsUnderDirectory(_excludedDirectory));
+            && !_excludedDirectories.Any(absolutePath.IsUnderDirectory);
 
     public async ValueTask<byte[]?> GetHashAsync(string absolutePath)
     {

@@ -189,17 +189,21 @@ public abstract class MSBuildCachePluginBase<TPluginSettings> : ProjectCachePlug
         DirectoryFileHasher nugetPackageDirectoryHasher = new(NugetPackageRoot, ContentHasher);
 
         return ComposeInputHasher(sourceControlFileHasher, nugetPackageDirectoryHasher,
-            Settings?.AdditionalInputRoots ?? Array.Empty<string>(), _repoRoot!, ContentHasher);
+            Settings?.AdditionalInputRoots ?? Array.Empty<string>(), [_repoRoot!, Path.GetTempPath()], ContentHasher);
     }
 
     // Additional roots, such as sibling repositories, are hashed by content after the repository and the package root.
-    // They never claim files under the repository: its untracked files (intermediate outputs, restore state with
-    // absolute paths) stay out of fingerprints as before. Files read anywhere else outside the repository stay out too.
+    // They never claim the excluded directories: the repository, whose untracked files (intermediate outputs, restore
+    // state with absolute paths) stay out of fingerprints as before, and the temporary directory, whose random paths
+    // would never match again. Files read anywhere else outside the repository stay out too.
     internal static IInputHasher ComposeInputHasher(
-        IInputHasher repository, IInputHasher packages, IEnumerable<string> additionalRoots, string repositoryRoot,
-        IContentHasher contentHasher)
-        => new CompositeInputHasher([repository, packages,
-            .. additionalRoots.Select(root => new DirectoryFileHasher(Path.GetFullPath(root), contentHasher, Path.GetFullPath(repositoryRoot)))]);
+        IInputHasher repository, IInputHasher packages, IEnumerable<string> additionalRoots,
+        IEnumerable<string> excludedDirectories, IContentHasher contentHasher)
+    {
+        string[] excluded = excludedDirectories.Select(Path.GetFullPath).ToArray();
+        return new CompositeInputHasher([repository, packages,
+            .. additionalRoots.Select(root => new DirectoryFileHasher(Path.GetFullPath(root), contentHasher, excluded))]);
+    }
 
     protected virtual IFingerprintFactory CreateFingerprintFactory()
     {
